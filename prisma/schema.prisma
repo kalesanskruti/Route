@@ -1,0 +1,199 @@
+datasource db {
+  provider = "mysql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  TRANSPORT_MANAGER
+  DRIVER
+}
+
+enum BusStatus {
+  ACTIVE
+  MAINTENANCE
+}
+
+enum StopType {
+  PICKUP
+  DROP
+  BOTH
+}
+
+enum AttendanceStatus {
+  BOARDED
+  DROPPED
+}
+
+enum AttendanceType {
+  PICKUP
+  DROP
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+}
+
+enum NotificationType {
+  BOARDED
+  DROPPED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  driver    Driver?
+}
+
+model Bus {
+  id                     String             @id @default(uuid())
+  busNumber              String             @unique
+  registrationNumber     String             @unique
+  seatingCapacity        Int
+  vehicleType            String
+  insuranceNumber        String
+  insuranceExpiry        DateTime
+  insuranceDocumentUrl   String?
+  fitnessCertificateUrl  String?
+  fitnessExpiry          DateTime
+  gpsDeviceId            String             @unique
+  status                 BusStatus          @default(ACTIVE)
+  isArchived             Boolean            @default(false)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  routes                 Route[]
+  locations              BusLocation[]
+  students               Student[]
+  attendance             AttendanceRecord[]
+  drivers                Driver[]
+}
+
+model BusLocation {
+  id        String   @id @default(uuid())
+  busId     String
+  bus       Bus      @relation(fields: [busId], references: [id])
+  latitude  Float
+  longitude Float
+  speed     Float?
+  timestamp DateTime @default(now())
+
+  @@index([busId, timestamp])
+}
+
+model Driver {
+  id             String   @id @default(uuid())
+  name           String
+  licenseNumber  String   @unique
+  licenseExpiry  DateTime
+  contactDetails String
+  userId         String?  @unique
+  user           User?    @relation(fields: [userId], references: [id])
+  busId          String?
+  bus            Bus?     @relation(fields: [busId], references: [id])
+  isArchived     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  routes         Route[]
+}
+
+model Route {
+  id            String             @id @default(uuid())
+  name          String             @unique
+  source        String
+  destination   String
+  estimatedTime String
+  busId         String?
+  bus           Bus?               @relation(fields: [busId], references: [id])
+  driverId      String?
+  driver        Driver?            @relation(fields: [driverId], references: [id])
+  isArchived    Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  stops         RouteStop[]
+  students      Student[]
+  attendance    AttendanceRecord[]
+}
+
+model RouteStop {
+  id        String    @id @default(uuid())
+  routeId   String
+  route     Route     @relation(fields: [routeId], references: [id])
+  stopName  String
+  stopOrder Int
+  latitude  Float
+  longitude Float
+  type      StopType  @default(BOTH)
+  students  Student[]
+}
+
+model Student {
+  id                 String             @id @default(uuid())
+  name               String
+  admissionNumber    String             @unique
+  classSection       String
+  parentName         String
+  parentMobileNumber String
+  busId              String?
+  bus                Bus?               @relation(fields: [busId], references: [id])
+  routeId            String?
+  route              Route?             @relation(fields: [routeId], references: [id])
+  pickupStopId       String?
+  pickupStop         RouteStop?         @relation(fields: [pickupStopId], references: [id])
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  attendance         AttendanceRecord[]
+  notifications      NotificationLog[]
+}
+
+model AttendanceRecord {
+  id             String           @id @default(uuid())
+  studentId      String
+  student        Student          @relation(fields: [studentId], references: [id])
+  busId          String
+  bus            Bus              @relation(fields: [busId], references: [id])
+  routeId        String
+  route          Route            @relation(fields: [routeId], references: [id])
+  status         AttendanceStatus
+  type           AttendanceType
+  timestamp      DateTime         @default(now())
+  date           String
+  markedByUserId String
+  gpsLatitude    Float?
+  gpsLongitude   Float?
+  scanCode       String?
+
+  @@unique([studentId, type, date])
+}
+
+model NotificationLog {
+  id        String             @id @default(uuid())
+  studentId String
+  student   Student            @relation(fields: [studentId], references: [id])
+  message   String
+  status    NotificationStatus
+  sentTo    String
+  timestamp DateTime           @default(now())
+  type      NotificationType
+}
+
+model TransportSettings {
+  id                          String   @id @default("default")
+  schoolName                  String
+  notificationBoardedTemplate String
+  notificationDroppedTemplate String
+  defaultTripStartTime        String
+  defaultTripEndTime          String
+  timezone                    String   @default("Asia/Kolkata")
+  smsEnabled                  Boolean  @default(false)
+  whatsappEnabled             Boolean  @default(false)
+  updatedAt                   DateTime @updatedAt
+}
