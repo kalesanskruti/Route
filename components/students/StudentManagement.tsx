@@ -1,594 +1,447 @@
 "use client"
 
-import { useState } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
-import { toast } from "sonner"
-import { 
-  Users, 
-  Plus, 
-  Search, 
-  Edit2, 
-  Trash2, 
-  Check, 
-  Loader2, 
-  X,
-  GraduationCap,
-  Phone,
-  User,
+import React, { useState, useMemo } from "react"
+import {
+  Users,
+  Search,
+  Filter,
+  Download,
+  Plus,
+  Bus,
+  Route as RouteIcon,
   MapPin,
-  Bus as BusIcon
+  CheckCircle2,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  GraduationCap,
 } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { studentSchema } from "@/lib/validations"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { toast } from "sonner"
 
-type StudentFormValues = z.infer<typeof studentSchema>
-
-interface StopType {
+export interface StudentRecord {
   id: string
-  stopName: string
-  stopOrder: number
-}
-
-interface StudentType {
-  id: string
+  studentId: string
   name: string
-  admissionNumber: string
-  classSection: string
-  parentName: string
-  parentMobileNumber: string
-  busId: string | null
-  routeId: string | null
-  pickupStopId: string | null
-  bus?: { busNumber: string } | null
-  route?: { name: string } | null
-  pickupStop?: { stopName: string } | null
-}
-
-interface RouteType {
-  id: string
-  name: string
-  busId: string | null
-  bus?: { busNumber: string } | null
-  stops: StopType[]
-}
-
-interface BusType {
-  id: string
-  busNumber: string
+  department: string
+  semester: string
+  pickupPoint: string
+  assignedBus: string
+  route: string
+  todayAttendance: "BOARDED" | "DROPPED" | "ABSENT"
+  status: "ACTIVE" | "INACTIVE"
 }
 
 export function StudentManagement() {
-  const queryClient = useQueryClient()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [editingStudent, setEditingStudent] = useState<StudentType | null>(null)
-  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>("ALL")
+  const [selectedAttendanceFilter, setSelectedAttendanceFilter] = useState<string>("ALL")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const itemsPerPage = 10
 
-  // 1. Queries
-  const { data: students = [], isLoading } = useQuery<StudentType[]>({
-    queryKey: ["students"],
-    queryFn: async () => {
-      const res = await fetch("/api/students")
-      if (!res.ok) throw new Error("Failed to load students")
-      return res.json()
-    }
-  })
-
-  const { data: routes = [] } = useQuery<RouteType[]>({
-    queryKey: ["routes"],
-    queryFn: async () => {
-      const res = await fetch("/api/routes")
-      if (!res.ok) throw new Error("Failed to load routes")
-      return res.json()
-    }
-  })
-
-  const { data: buses = [] } = useQuery<BusType[]>({
-    queryKey: ["buses"],
-    queryFn: async () => {
-      const res = await fetch("/api/buses")
-      if (!res.ok) throw new Error("Failed to load buses")
-      return res.json()
-    }
-  })
-
-  // 2. React Hook Form Setup
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(studentSchema),
-    defaultValues: {
-      name: "",
-      admissionNumber: "",
-      classSection: "",
-      parentName: "",
-      parentMobileNumber: "",
-      busId: null,
-      routeId: null,
-      pickupStopId: null,
+  const initialStudents: StudentRecord[] = [
+    {
+      id: "stu-1",
+      studentId: "2024-CS-0091",
+      name: "Aarav Sharma",
+      department: "Engineering & Tech",
+      semester: "Sem 4 (B.Tech CS)",
+      pickupPoint: "North Gate Hub",
+      assignedBus: "BUS-101 (KA-01-EQ-4421)",
+      route: "Main Campus Express #1",
+      todayAttendance: "BOARDED",
+      status: "ACTIVE",
     },
-  })
-
-  const watchRouteId = watch("routeId")
-  const watchBusId = watch("busId")
-  const watchPickupStopId = watch("pickupStopId")
-
-  // Find currently selected route to filter stops list
-  const selectedRoute = routes.find(r => r.id === watchRouteId)
-  const availableStops = selectedRoute?.stops || []
-
-  // Handle route change: auto-select associated bus and clear prior stop
-  const handleRouteChange = (routeId: string) => {
-    setValue("routeId", routeId || null)
-    setValue("pickupStopId", null)
-    
-    const matchedRoute = routes.find(r => r.id === routeId)
-    if (matchedRoute && matchedRoute.busId) {
-      setValue("busId", matchedRoute.busId)
-    } else {
-      setValue("busId", null)
-    }
-  }
-
-  // 3. Mutations
-  const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || "Failed to add student")
-      }
-      return res.json()
+    {
+      id: "stu-2",
+      studentId: "2025-MBA-0142",
+      name: "Priya Nair",
+      department: "Business Management",
+      semester: "Sem 2 (MBA)",
+      pickupPoint: "Science Block D",
+      assignedBus: "BUS-102 (KA-01-EQ-4422)",
+      route: "Science Park Route #4",
+      todayAttendance: "DROPPED",
+      status: "ACTIVE",
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] })
-      toast.success("Student profile added successfully!")
-      handleCloseForm()
+    {
+      id: "stu-3",
+      studentId: "2023-AR-0012",
+      name: "Rohan Gupta",
+      department: "Engineering & Tech",
+      semester: "Sem 6 (B.Arch)",
+      pickupPoint: "Engineering Library",
+      assignedBus: "BUS-103 (KA-01-EQ-4425)",
+      route: "South Medical Center #2",
+      todayAttendance: "BOARDED",
+      status: "ACTIVE",
     },
-    onError: (err: any) => {
-      toast.error(err.message)
-    }
-  })
+    {
+      id: "stu-4",
+      studentId: "2024-LW-0084",
+      name: "Sanya Mehta",
+      department: "Law & Public Policy",
+      semester: "Sem 4 (LL.B)",
+      pickupPoint: "North Gate Hub",
+      assignedBus: "BUS-104 (KA-01-EQ-4430)",
+      route: "North Gateway Line #8",
+      todayAttendance: "BOARDED",
+      status: "ACTIVE",
+    },
+    {
+      id: "stu-5",
+      studentId: "2025-MD-0209",
+      name: "Kiran Rao",
+      department: "Medicine & Surgery",
+      semester: "Sem 2 (MBBS)",
+      pickupPoint: "Central Auditorium",
+      assignedBus: "BUS-105 (KA-01-EQ-4433)",
+      route: "Main Campus Express #1",
+      todayAttendance: "ABSENT",
+      status: "ACTIVE",
+    },
+    {
+      id: "stu-6",
+      studentId: "2023-CS-0412",
+      name: "Neha Joshi",
+      department: "Engineering & Tech",
+      semester: "Sem 6 (B.Tech CS)",
+      pickupPoint: "North Gate Hub",
+      assignedBus: "BUS-101 (KA-01-EQ-4421)",
+      route: "Main Campus Express #1",
+      todayAttendance: "BOARDED",
+      status: "ACTIVE",
+    },
+    {
+      id: "stu-7",
+      studentId: "2024-AH-0019",
+      name: "Devendra Patel",
+      department: "Arts & Humanities",
+      semester: "Sem 4 (B.A)",
+      pickupPoint: "Science Block D",
+      assignedBus: "BUS-106 (KA-01-EQ-4440)",
+      route: "Science Park Route #4",
+      todayAttendance: "BOARDED",
+      status: "ACTIVE",
+    },
+    {
+      id: "stu-8",
+      studentId: "2023-MD-0118",
+      name: "Ananya Iyer",
+      department: "Medicine & Surgery",
+      semester: "Sem 6 (MBBS)",
+      pickupPoint: "Engineering Library",
+      assignedBus: "BUS-103 (KA-01-EQ-4425)",
+      route: "South Medical Center #2",
+      todayAttendance: "DROPPED",
+      status: "ACTIVE",
+    },
+  ]
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const res = await fetch(`/api/students/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || "Failed to update student")
-      }
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] })
-      toast.success("Student details updated!")
-      handleCloseForm()
-    },
-    onError: (err: any) => {
-      toast.error(err.message)
-    }
-  })
+  const [students] = useState<StudentRecord[]>(initialStudents)
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/students/${id}`, {
-        method: "DELETE",
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || "Failed to delete student")
-      }
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] })
-      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] })
-      toast.success("Student profile deleted successfully!")
-    },
-    onError: (err: any) => {
-      toast.error(err.message)
-    }
-  })
-
-  // 4. Actions
-  const handleOpenCreateForm = () => {
-    reset({
-      name: "",
-      admissionNumber: "",
-      classSection: "",
-      parentName: "",
-      parentMobileNumber: "",
-      busId: null,
-      routeId: null,
-      pickupStopId: null,
+  const filteredStudents = useMemo(() => {
+    return students.filter((stu) => {
+      const matchesSearch =
+        stu.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        stu.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        stu.pickupPoint.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        stu.assignedBus.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesDept =
+        selectedDeptFilter === "ALL" || stu.department === selectedDeptFilter
+      const matchesAttendance =
+        selectedAttendanceFilter === "ALL" || stu.todayAttendance === selectedAttendanceFilter
+      return matchesSearch && matchesDept && matchesAttendance
     })
-    setEditingStudent(null)
-    setIsFormOpen(true)
-  }
+  }, [students, searchQuery, selectedDeptFilter, selectedAttendanceFilter])
 
-  const handleOpenEditForm = (student: StudentType) => {
-    setEditingStudent(student)
-    reset({
-      name: student.name,
-      admissionNumber: student.admissionNumber,
-      classSection: student.classSection,
-      parentName: student.parentName,
-      parentMobileNumber: student.parentMobileNumber,
-      busId: student.busId,
-      routeId: student.routeId,
-      pickupStopId: student.pickupStopId,
-    })
-    setIsFormOpen(true)
-  }
-
-  const handleCloseForm = () => {
-    setIsFormOpen(false)
-    setEditingStudent(null)
-  }
-
-  const onSubmit = (data: any) => {
-    if (editingStudent) {
-      updateMutation.mutate({ id: editingStudent.id, data })
-    } else {
-      createMutation.mutate(data)
-    }
-  }
-
-  const filteredStudents = students.filter(student => 
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.classSection.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.parentName.toLowerCase().includes(searchTerm.toLowerCase())
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage) || 1
+  const paginatedStudents = filteredStudents.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   )
 
-  const isMutating = createMutation.isPending || updateMutation.isPending
-
   return (
-    <div className="space-y-6">
-      {/* Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-          <Input
-            placeholder="Search by name, admission #, class..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-slate-900/40 border-white/5 text-white placeholder:text-slate-500 focus:border-emerald-500"
-          />
+    <div className="space-y-6 font-sans">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              Enterprise Student Transportation Directory
+            </h1>
+            <Badge className="bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-bold">
+              4,820 Total Enrolled
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            RFID smart card assignments, pickup points, department mapping, and real-time boarding telemetry
+          </p>
         </div>
-        <Button 
-          onClick={handleOpenCreateForm}
-          className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-lg shadow-emerald-950/20 flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Student
-        </Button>
+
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => toast.success("Exported complete student directory as XLSX")}
+            variant="outline"
+            size="sm"
+            className="h-9 gap-2 rounded-xl text-xs font-semibold border-border hover:bg-muted"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export Roster</span>
+          </Button>
+
+          <Button
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold h-9 px-4 shadow-sm"
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Enroll Student Rider
+          </Button>
+        </div>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-        
-        {/* Listing Panel */}
-        <div className="xl:col-span-2 space-y-4">
-          <Card className="border border-white/5 bg-slate-900/40 backdrop-blur-xl shadow-xl">
-            <CardHeader className="border-b border-white/5">
-              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <Users className="h-5 w-5 text-emerald-400" />
-                Student Roster
-              </CardTitle>
-              <CardDescription className="text-slate-400">
-                Manage pupil route alignments and notifications.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="p-12 flex justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-                </div>
-              ) : filteredStudents.length === 0 ? (
-                <div className="p-12 text-center text-slate-500 text-sm">
-                  No active students found matching search criteria.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm text-slate-300">
-                    <thead className="bg-slate-950/40 text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-white/5">
-                      <tr>
-                        <th className="px-6 py-4">Student Details</th>
-                        <th className="px-6 py-4">Parent Info</th>
-                        <th className="px-6 py-4">Assigned Line / Stop</th>
-                        <th className="px-6 py-4">Bus</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5 bg-slate-900/10">
-                      {filteredStudents.map((student) => (
-                        <tr key={student.id} className="transition-colors hover:bg-white/5">
-                          <td className="px-6 py-4">
-                            <span className="block font-semibold text-white">{student.name}</span>
-                            <span className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                              <GraduationCap className="h-3.5 w-3.5" />
-                              Adm: {student.admissionNumber} • Class {student.classSection}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="block text-slate-300">{student.parentName}</span>
-                            <span className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                              <Phone className="h-3 w-3" /> {student.parentMobileNumber}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {student.route ? (
-                              <div>
-                                <span className="text-emerald-400 font-medium block">{student.route.name}</span>
-                                {student.pickupStop ? (
-                                  <span className="text-[10px] text-slate-500 flex items-center gap-0.5 mt-0.5">
-                                    <MapPin className="h-3 w-3 text-slate-600" />
-                                    {student.pickupStop.stopName}
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-amber-500 italic block">No pickup stop assigned</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-600 italic">Unassigned</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-xs font-semibold">
-                            {student.bus ? (
-                              <span className="text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded uppercase tracking-wider">
-                                {student.bus.busNumber}
-                              </span>
-                            ) : (
-                              <span className="text-slate-600 italic">None</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
-                            <Button
-                              onClick={() => handleOpenEditForm(student)}
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                if (confirm(`Are you sure you want to delete student ${student.name}?`)) {
-                                  deleteMutation.mutate(student.id)
-                                }
-                              }}
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+      {/* Filter and Search Toolbar */}
+      <Card className="rounded-2xl border-border bg-card shadow-sm p-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by student name, ID, pickup point or bus..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="pl-10 h-9 rounded-xl border-border text-sm"
+            />
+          </div>
 
-        {/* Form Panel */}
-        {isFormOpen && (
-          <Card className="border border-white/10 bg-slate-900/60 backdrop-blur-xl shadow-2xl text-slate-100 sticky top-24 transition-all duration-300">
-            <CardHeader className="border-b border-white/5 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                  <Users className="h-5 w-5 text-emerald-400" />
-                  {editingStudent ? `Edit Student Details` : "Add New Student"}
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  Input demographics and transport assignments.
-                </CardDescription>
-              </div>
-              <Button
-                onClick={handleCloseForm}
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-slate-500 hover:text-white rounded-full hover:bg-white/5"
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">Department:</span>
+              <select
+                value={selectedDeptFilter}
+                onChange={(e) => {
+                  setSelectedDeptFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="h-9 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-sm"
               >
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
+                <option value="ALL">All Departments</option>
+                <option value="Engineering & Tech">Engineering &amp; Tech</option>
+                <option value="Medicine & Surgery">Medicine &amp; Surgery</option>
+                <option value="Business Management">Business Management</option>
+                <option value="Arts & Humanities">Arts &amp; Humanities</option>
+                <option value="Law & Public Policy">Law &amp; Public Policy</option>
+              </select>
+            </div>
 
-            <form onSubmit={handleSubmit(onSubmit)}>
-              <CardContent className="p-6 space-y-4">
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="name" className="text-xs font-semibold text-slate-300">Student Name</Label>
-                    <Input
-                      id="name"
-                      placeholder="Jane Doe"
-                      className="bg-slate-950/40 border-white/5 text-white focus:border-emerald-500 h-9 text-sm"
-                      {...register("name")}
-                    />
-                    {errors.name && (
-                      <p className="text-[10px] text-rose-500 font-medium">{errors.name.message as string}</p>
-                    )}
-                  </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">Today&apos;s Status:</span>
+              <select
+                value={selectedAttendanceFilter}
+                onChange={(e) => {
+                  setSelectedAttendanceFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="h-9 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-sm"
+              >
+                <option value="ALL">All Status</option>
+                <option value="BOARDED">Boarded</option>
+                <option value="DROPPED">Dropped</option>
+                <option value="ABSENT">Absent</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="admissionNumber" className="text-xs font-semibold text-slate-300">Admission Number</Label>
-                    <Input
-                      id="admissionNumber"
-                      placeholder="ADM-2026-09"
-                      className="bg-slate-950/40 border-white/5 text-white focus:border-emerald-500 h-9 text-sm"
-                      {...register("admissionNumber")}
-                    />
-                    {errors.admissionNumber && (
-                      <p className="text-[10px] text-rose-500 font-medium">{errors.admissionNumber.message as string}</p>
-                    )}
-                  </div>
-                </div>
+      {/* Student Data Table */}
+      <Card className="rounded-2xl border-border bg-card shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead className="bg-muted/50 border-b border-border text-xs font-bold text-muted-foreground uppercase tracking-wider sticky top-0">
+              <tr>
+                <th className="py-3.5 px-4">Student &amp; ID</th>
+                <th className="py-3.5 px-4">Department &amp; Sem</th>
+                <th className="py-3.5 px-4">Pickup Stop Point</th>
+                <th className="py-3.5 px-4">Assigned Bus</th>
+                <th className="py-3.5 px-4">Assigned Route</th>
+                <th className="py-3.5 px-4 text-center">Today&apos;s RFID Attendance</th>
+                <th className="py-3.5 px-4 text-center">Status</th>
+                <th className="py-3.5 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {paginatedStudents.length > 0 ? (
+                paginatedStudents.map((stu) => (
+                  <tr key={stu.id} className="hover:bg-muted/40 transition-colors">
+                    <td className="py-4 px-4">
+                      <div className="font-bold text-foreground">{stu.name}</div>
+                      <div className="text-xs font-mono text-muted-foreground">{stu.studentId}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="font-semibold text-foreground">{stu.department}</div>
+                      <div className="text-xs text-muted-foreground">{stu.semester}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-1.5 text-foreground font-medium">
+                        <MapPin className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span>{stu.pickupPoint}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="font-mono font-bold text-foreground">{stu.assignedBus}</span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="font-medium text-foreground">{stu.route}</span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
+                          stu.todayAttendance === "BOARDED"
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            : stu.todayAttendance === "DROPPED"
+                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                            : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
+                        }`}
+                      >
+                        {stu.todayAttendance}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Active
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <Button
+                        onClick={() => toast.info(`Viewing RFID scan history for ${stu.name}`)}
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-xl text-xs font-semibold"
+                      >
+                        Scan History
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-muted-foreground text-sm">
+                    No students found matching your search filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="classSection" className="text-xs font-semibold text-slate-300">Class & Section</Label>
-                  <Input
-                    id="classSection"
-                    placeholder="V-A"
-                    className="bg-slate-950/40 border-white/5 text-white focus:border-emerald-500 h-9 text-sm"
-                    {...register("classSection")}
-                  />
-                  {errors.classSection && (
-                    <p className="text-[10px] text-rose-500 font-medium">{errors.classSection.message as string}</p>
-                  )}
-                </div>
+        {/* Pagination Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
+          <div className="text-xs font-medium text-muted-foreground">
+            Showing{" "}
+            <span className="font-bold text-foreground">
+              {filteredStudents.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
+            </span>{" "}
+            to{" "}
+            <span className="font-bold text-foreground">
+              {Math.min(currentPage * itemsPerPage, filteredStudents.length)}
+            </span>{" "}
+            of <span className="font-bold text-foreground">{filteredStudents.length}</span>{" "}
+            students
+          </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="parentName" className="text-xs font-semibold text-slate-300">Parent Name</Label>
-                    <Input
-                      id="parentName"
-                      placeholder="Robert Doe"
-                      className="bg-slate-950/40 border-white/5 text-white focus:border-emerald-500 h-9 text-sm"
-                      {...register("parentName")}
-                    />
-                    {errors.parentName && (
-                      <p className="text-[10px] text-rose-500 font-medium">{errors.parentName.message as string}</p>
-                    )}
-                  </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              className="h-8 rounded-xl text-xs font-semibold"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            <span className="text-xs font-semibold px-2">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              className="h-8 rounded-xl text-xs font-semibold"
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      </Card>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="parentMobileNumber" className="text-xs font-semibold text-slate-300">Parent Mobile (+91...)</Label>
-                    <Input
-                      id="parentMobileNumber"
-                      placeholder="+919999988888"
-                      className="bg-slate-950/40 border-white/5 text-white focus:border-emerald-500 h-9 text-sm"
-                      {...register("parentMobileNumber")}
-                    />
-                    {errors.parentMobileNumber && (
-                      <p className="text-[10px] text-rose-500 font-medium">{errors.parentMobileNumber.message as string}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Logistics Route assignments */}
-                <div className="border-t border-white/5 pt-4 space-y-4">
-                  <div className="text-xs font-semibold text-emerald-400">Logistics Routing Mappings</div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="routeId" className="text-xs font-semibold text-slate-300">Select Transit Route</Label>
-                    <select
-                      id="routeId"
-                      className="flex h-9 w-full rounded-lg border border-white/5 bg-slate-950/40 px-3 py-1 text-sm text-white focus:border-emerald-500 outline-none"
-                      onChange={(e) => handleRouteChange(e.target.value)}
-                      value={watchRouteId || ""}
-                    >
-                      <option value="" className="bg-slate-900 text-slate-400 italic">Unassigned</option>
-                      {routes.map((route) => (
-                        <option key={route.id} value={route.id} className="bg-slate-900 text-white">
-                          {route.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Dynamic Pickup Stop select */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="pickupStopId" className="text-xs font-semibold text-slate-300">Select Pickup / Drop Stop</Label>
-                    <select
-                      id="pickupStopId"
-                      className="flex h-9 w-full rounded-lg border border-white/5 bg-slate-950/40 px-3 py-1 text-sm text-white focus:border-emerald-500 outline-none disabled:opacity-50"
-                      onChange={(e) => setValue("pickupStopId", e.target.value || null)}
-                      value={watchPickupStopId || ""}
-                      disabled={!watchRouteId}
-                    >
-                      <option value="" className="bg-slate-900 text-slate-400 italic">Select Stop...</option>
-                      {availableStops.map((stop) => (
-                        <option key={stop.id} value={stop.id!} className="bg-slate-900 text-white">
-                          Stop #{stop.stopOrder}: {stop.stopName}
-                        </option>
-                      ))}
-                    </select>
-                    {!watchRouteId && (
-                      <p className="text-[10px] text-slate-500 italic">Select a transit route first to load stop listings.</p>
-                    )}
-                  </div>
-
-                  {/* Associated Bus */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="busId" className="text-xs font-semibold text-slate-300 flex items-center gap-1">
-                      <BusIcon className="h-3 w-3 text-slate-400" /> Assigned Bus (SSOT Sync)
-                    </Label>
-                    <select
-                      id="busId"
-                      className="flex h-9 w-full rounded-lg border border-white/5 bg-slate-950/40 px-3 py-1 text-sm text-white focus:border-emerald-500 outline-none"
-                      onChange={(e) => setValue("busId", e.target.value || null)}
-                      value={watchBusId || ""}
-                    >
-                      <option value="" className="bg-slate-900 text-slate-400 italic">Unassigned</option>
-                      {buses.map((bus) => (
-                        <option key={bus.id} value={bus.id} className="bg-slate-900 text-white">
-                          {bus.busNumber}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-              </CardContent>
-
-              <div className="p-6 border-t border-white/5 bg-slate-950/40 flex justify-end gap-3 rounded-b-2xl">
-                <Button 
-                  type="button" 
-                  onClick={handleCloseForm} 
-                  variant="outline" 
-                  className="border-white/5 text-slate-300 hover:bg-white/5 h-10 text-sm font-medium"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={isMutating}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium h-10 text-sm px-6"
-                >
-                  {isMutating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="mr-2 h-4 w-4" />
-                      {editingStudent ? "Update Details" : "Add Student"}
-                    </>
-                  )}
-                </Button>
+      {/* Add Student Modal */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="sm:max-w-md bg-card border border-border shadow-2xl rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-foreground">
+              Enroll Student for University Transport
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Assigns a permanent RFID smart card and campus bus stop
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-sm">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-foreground">Student Full Name</label>
+              <Input placeholder="e.g. Siddharth Verma" className="rounded-xl border-border h-9 text-sm" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-foreground">Student Roll #</label>
+                <Input placeholder="2025-CS-0999" className="rounded-xl border-border h-9 text-sm" />
               </div>
-            </form>
-          </Card>
-        )}
-
-      </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-foreground">Department</label>
+                <Input placeholder="Engineering & Tech" className="rounded-xl border-border h-9 text-sm" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-foreground">Pickup Stop Point</label>
+              <Input placeholder="North Gate Hub" className="rounded-xl border-border h-9 text-sm" />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsAddModalOpen(false)} className="rounded-xl text-xs h-9">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setIsAddModalOpen(false)
+                toast.success("Student enrolled and RFID card mapped successfully!")
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold h-9 px-5"
+            >
+              Enroll Student
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

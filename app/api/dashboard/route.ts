@@ -29,36 +29,38 @@ export async function GET(request: NextRequest) {
 
     // 4. Fetch Metrics
     const [
-      totalBuses,
       activeRoutes,
       driversOnDuty,
       totalStudents,
-      boardedCount,
-      droppedCount,
-      activeBusesCount,
-      maintenanceBusesCount,
+      busStatusCounts,
+      attendanceCounts,
     ] = await Promise.all([
-      // Total non-archived buses
-      db.bus.count({ where: { isArchived: false } }),
       // Active non-archived routes
       db.route.count({ where: { isArchived: false } }),
       // Drivers currently assigned to a bus
       db.driver.count({ where: { isArchived: false, busId: { not: null } } }),
       // Total non-archived students mapped to a route
       db.student.count({ where: { routeId: { not: null } } }),
-      // Attendance boarded today
-      db.attendanceRecord.count({
-        where: { date: todayStr, status: "BOARDED" },
+      // Group bus counts by status
+      db.bus.groupBy({
+        by: ["status"],
+        where: { isArchived: false },
+        _count: { _all: true },
       }),
-      // Attendance dropped today
-      db.attendanceRecord.count({
-        where: { date: todayStr, status: "DROPPED" },
+      // Group attendance by status for today
+      db.attendanceRecord.groupBy({
+        by: ["status"],
+        where: { date: todayStr },
+        _count: { _all: true },
       }),
-      // Active buses
-      db.bus.count({ where: { status: "ACTIVE", isArchived: false } }),
-      // Maintenance buses
-      db.bus.count({ where: { status: "MAINTENANCE", isArchived: false } }),
     ]);
+
+    const activeBusesCount = busStatusCounts.find(b => b.status === "ACTIVE")?._count._all || 0;
+    const maintenanceBusesCount = busStatusCounts.find(b => b.status === "MAINTENANCE")?._count._all || 0;
+    const totalBuses = busStatusCounts.reduce((acc, curr) => acc + curr._count._all, 0);
+
+    const boardedCount = attendanceCounts.find(a => a.status === "BOARDED")?._count._all || 0;
+    const droppedCount = attendanceCounts.find(a => a.status === "DROPPED")?._count._all || 0;
 
     // 5. Fetch Recent Scans for Feed
     const recentScans = await db.attendanceRecord.findMany({

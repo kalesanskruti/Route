@@ -45,11 +45,13 @@ export function LiveMap({ busId, routeName, stops }: LiveMapProps) {
 
   useEffect(() => {
     if (initialLoc) {
-      setLastLocation({
-        latitude: initialLoc.latitude,
-        longitude: initialLoc.longitude,
-        speed: initialLoc.speed,
-        timestamp: initialLoc.timestamp
+      queueMicrotask(() => {
+        setLastLocation({
+          latitude: initialLoc.latitude,
+          longitude: initialLoc.longitude,
+          speed: initialLoc.speed,
+          timestamp: initialLoc.timestamp
+        })
       })
     }
   }, [initialLoc])
