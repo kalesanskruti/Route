@@ -101,41 +101,78 @@ export function AppLayout({ children }: AppLayoutProps) {
     { id: "3", name: "South Medical Center Campus", buses: 36 },
   ]
 
-  const navSections = [
-    {
-      title: "OVERVIEW",
-      items: [
-        { label: "Dashboard", href: `${prefix}/dashboard`, icon: LayoutDashboard },
-      ],
-    },
-    {
-      title: "FLEET OPERATIONS",
-      items: [
-        { label: "Bus Management", href: `${prefix}/buses`, icon: Bus },
-        { label: "Drivers", href: `${prefix}/drivers`, icon: UserSquare2 },
-        { label: "Students", href: `${prefix}/students`, icon: Users },
-        { label: "Routes", href: `${prefix}/routes`, icon: RouteIcon },
-        { label: "GPS Tracking", href: `${prefix}/tracking`, icon: Navigation },
-        { label: "Attendance", href: `${prefix}/attendance`, icon: CheckSquare },
-        { label: "Maintenance", href: `${prefix}/maintenance`, icon: Wrench },
-        { label: "Compliance", href: `${prefix}/compliance`, icon: ShieldCheck },
-      ],
-    },
-    {
-      title: "INTELLIGENCE",
-      items: [
-        { label: "Analytics", href: `${prefix}/analytics`, icon: BarChart3 },
-        { label: "Reports", href: `${prefix}/reports`, icon: FileText },
-      ],
-    },
-    {
-      title: "SYSTEM",
-      items: [
-        ...(role === "SUPER_ADMIN" ? [{ label: "Global Settings", href: "/admin/settings", icon: Settings }] : []),
-        { label: "Enterprise Support", href: `${prefix}/support`, icon: LifeBuoy },
-      ],
-    },
-  ]
+  const navSections = role === "SUPER_ADMIN" 
+    ? [
+        {
+          title: "OVERVIEW",
+          items: [
+            { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+          ],
+        },
+        {
+          title: "INSTITUTION MANAGEMENT",
+          items: [
+            { label: "Universities", href: "/admin/institutions", icon: Building2 },
+          ],
+        },
+        {
+          title: "SYSTEM & ACCESS",
+          items: [
+            { label: "Users & Roles", href: "/admin/users", icon: Users },
+            { label: "Global Settings", href: "/admin/settings", icon: Settings },
+            { label: "Audit Logs", href: "/admin/audit", icon: ShieldCheck },
+          ],
+        },
+      ]
+    : [
+        {
+          title: "OVERVIEW",
+          items: [
+            { label: "Dashboard", href: "/manager/dashboard", icon: LayoutDashboard },
+          ],
+        },
+        {
+          title: "TRANSPORT",
+          items: [
+            { label: "Fleet", href: "/manager/buses", icon: Bus },
+            { label: "Drivers", href: "/manager/drivers", icon: UserSquare2 },
+            { label: "Supervisors", href: "/manager/supervisors", icon: User },
+            { label: "Routes", href: "/manager/routes", icon: RouteIcon },
+            { label: "Students", href: "/manager/students", icon: Users },
+            { label: "Trips", href: "/manager/trips", icon: Navigation },
+          ],
+        },
+        {
+          title: "MONITORING",
+          items: [
+            { label: "Live Tracking", href: "/manager/tracking", icon: MapPin },
+            { label: "Attendance & Safety", href: "/manager/attendance", icon: CheckSquare },
+            { label: "Incidents", href: "/manager/incidents", icon: AlertTriangle },
+          ],
+        },
+        {
+          title: "OPERATIONS",
+          items: [
+            { label: "Maintenance", href: "/manager/maintenance", icon: Wrench },
+            { label: "Compliance", href: "/manager/compliance", icon: ShieldCheck },
+            { label: "Notifications", href: "/manager/notifications", icon: Bell },
+          ],
+        },
+        {
+          title: "INSIGHTS",
+          items: [
+            { label: "Analytics", href: "/manager/analytics", icon: BarChart3 },
+            { label: "Reports", href: "/manager/reports", icon: FileText },
+          ],
+        },
+        {
+          title: "SYSTEM",
+          items: [
+            { label: "Activity Log", href: "/manager/activity-log", icon: Clock },
+            { label: "Settings", href: "/manager/settings", icon: Settings },
+          ],
+        }
+      ]
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: "/login" })

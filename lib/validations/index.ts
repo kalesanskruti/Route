@@ -30,6 +30,13 @@ export const busSchema = z.object({
   fitnessExpiry: dateSchema("Fitness expiry date is required"),
   fitnessCertificateUrl: z.string().optional().nullable(),
   gpsDeviceId: z.string().min(1, "GPS Device ID is required"),
+  manufacturer: z.string().optional().nullable(),
+  model: z.string().optional().nullable(),
+  manufacturingYear: z.coerce.number().int().optional().nullable(),
+  fuelType: z.string().optional().nullable(),
+  chassisNumber: z.string().optional().nullable(),
+  engineNumber: z.string().optional().nullable(),
+  gpsProvider: z.string().optional().nullable(),
   status: z.nativeEnum(BusStatus).default(BusStatus.ACTIVE),
 });
 

@@ -21,7 +21,10 @@ import {
   Clock,
   ArrowRight,
   Printer,
+  Loader2,
+  AlertTriangle
 } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -106,44 +109,23 @@ export function ReportsView() {
     MAINTENANCE_COST: ["Work Order #", "Bus #", "Service Type", "Workshop Depot", "Parts Replaced", "Total Cost"],
   }
 
-  const previewRows: Record<ReportType, Array<Array<string | number>>> = {
-    ATTENDANCE: [
-      ["04 Aug 2026", "Main Campus Express #1", 52, 52, 51, "99.8%"],
-      ["04 Aug 2026", "Science Park Route #4", 52, 50, 50, "96.2%"],
-      ["04 Aug 2026", "South Medical Center #2", 40, 38, 38, "95.0%"],
-      ["04 Aug 2026", "North Gateway Line #8", 40, 39, 39, "97.5%"],
-    ],
-    ROUTE_UTILIZATION: [
-      ["RT-EXP-01", "Main Campus Express #1", "BUS-101 (EV)", "45 mins", "43 mins", "100% On-Time"],
-      ["RT-SCI-04", "Science Park Route #4", "BUS-102 (EV)", "38 mins", "39 mins", "98.5% On-Time"],
-      ["RT-MED-02", "South Medical Center #2", "BUS-103 (Diesel)", "52 mins", "50 mins", "99.1% On-Time"],
-      ["RT-GTW-08", "North Gateway Line #8", "BUS-104 (Diesel)", "40 mins", "42 mins", "96.0% On-Time"],
-    ],
-    FUEL_ANALYSIS: [
-      ["July 2026", "Electric (Tata Starbus EV)", "18,400 km", "4,820 kWh", "₹4.20 / km", "₹42,000"],
-      ["July 2026", "Diesel (Ashok Leyland)", "14,200 km", "3,800 Litres", "₹24.80 / km", "₹12,400"],
-      ["June 2026", "Electric (Tata Starbus EV)", "19,100 km", "4,980 kWh", "₹4.18 / km", "₹44,500"],
-      ["June 2026", "Diesel (Ashok Leyland)", "13,900 km", "3,750 Litres", "₹25.10 / km", "₹11,800"],
-    ],
-    DRIVER_AUDIT: [
-      ["EMP-4012", "Rajesh Kumar", "BUS-101", "14,200 km", "0 Alerts", "4.9 / 5.0"],
-      ["EMP-4013", "Anil Sharma", "BUS-102", "13,800 km", "1 Alert", "4.8 / 5.0"],
-      ["EMP-4014", "Vikram Patel", "BUS-103", "16,400 km", "0 Alerts", "4.95 / 5.0"],
-      ["EMP-4015", "Suresh Singh", "BUS-104", "12,100 km", "2 Alerts", "4.7 / 5.0"],
-    ],
-    COMPLIANCE_DOSSIER: [
-      ["BUS-101", "KA-01-EQ-4421", "Comprehensive Insurance", "POL-ICICI-2026-9912", "14 Jan 2027", "VALID"],
-      ["BUS-102", "KA-01-EQ-4422", "State Route Permit", "STA/KA/01/2023/8812", "31 Jan 2029", "VALID"],
-      ["BUS-103", "KA-01-EQ-4425", "Insurance Policy", "POL-ICICI-2025-8812", "13 Aug 2026", "EXPIRING"],
-      ["BUS-105", "KA-01-EQ-4433", "State Permit", "STA/KA/2021/4092", "04 Aug 2026", "EXPIRED"],
-    ],
-    MAINTENANCE_COST: [
-      ["WO-2026-081", "BUS-101", "10,000 km Preventive", "Tata EV Authorized Workshop", "Brake Pads, Cabin Filter", "₹14,200"],
-      ["WO-2026-079", "BUS-102", "Battery Thermal Audit", "Central EV Fleet Service Hub", "Sensor recalibration", "₹8,500"],
-      ["WO-2026-074", "BUS-106", "Tire Replacement", "Tata EV Authorized Workshop", "2x Rear Radial Tires", "₹34,000"],
-      ["WO-2026-068", "BUS-103", "Front Suspension", "Ashok Leyland Workshop", "Suspension bushings", "₹12,200"],
-    ],
-  }
+  const { data, isLoading } = useQuery({
+    queryKey: ["reports-preview"],
+    queryFn: async () => {
+      const res = await fetch("/api/reports");
+      if (!res.ok) throw new Error("Failed to fetch reports");
+      return res.json();
+    }
+  });
+
+  const previewRows = data || {
+    ATTENDANCE: [],
+    ROUTE_UTILIZATION: [],
+    FUEL_ANALYSIS: [],
+    DRIVER_AUDIT: [],
+    COMPLIANCE_DOSSIER: [],
+    MAINTENANCE_COST: [],
+  };
 
   const handleGenerate = () => {
     setIsGenerating(true)
@@ -353,7 +335,12 @@ export function ReportsView() {
           </Badge>
         </CardHeader>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[200px] relative">
+          {isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-card/80 backdrop-blur-sm z-10">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : null}
           <table className="w-full text-left border-collapse text-sm">
             <thead className="bg-muted/50 border-b border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">
               <tr>
@@ -365,19 +352,25 @@ export function ReportsView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {previewRows[selectedReport].map((row, rowIdx) => (
+              {previewRows[selectedReport as keyof typeof previewRows]?.map((row: any, rowIdx: number) => (
                 <tr key={rowIdx} className="hover:bg-muted/40 transition-colors">
-                  {row.map((cell, colIdx) => (
+                  {row.map((cell: any, colIdx: number) => (
                     <td key={colIdx} className="py-4 px-4 font-medium text-foreground">
                       {typeof cell === "string" && cell.includes("VALID") ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
                           <CheckCircle2 className="h-3 w-3" />
                           {cell}
                         </span>
-                      ) : typeof cell === "string" && cell.includes("EXPIRED") ? (
-                        <span className="text-red-600 dark:text-red-400 font-bold">{cell}</span>
                       ) : typeof cell === "string" && cell.includes("EXPIRING") ? (
-                        <span className="text-amber-600 dark:text-amber-400 font-bold">{cell}</span>
+                        <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold">
+                          <AlertTriangle className="h-3 w-3" />
+                          {cell}
+                        </span>
+                      ) : typeof cell === "string" && (cell.includes("EXPIRED") || cell.includes("Delayed")) ? (
+                        <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 font-bold">
+                          <AlertTriangle className="h-3 w-3" />
+                          {cell}
+                        </span>
                       ) : (
                         cell
                       )}

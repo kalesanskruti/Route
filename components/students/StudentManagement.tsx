@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Eye,
   GraduationCap,
+  Loader2,
 } from "lucide-react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,6 +48,7 @@ export interface StudentRecord {
 }
 
 export function StudentManagement() {
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>("ALL")
   const [selectedAttendanceFilter, setSelectedAttendanceFilter] = useState<string>("ALL")
@@ -53,121 +56,84 @@ export function StudentManagement() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const itemsPerPage = 10
 
-  const initialStudents: StudentRecord[] = [
-    {
-      id: "stu-1",
-      studentId: "2024-CS-0091",
-      name: "Aarav Sharma",
-      department: "Engineering & Tech",
-      semester: "Sem 4 (B.Tech CS)",
-      pickupPoint: "North Gate Hub",
-      assignedBus: "BUS-101 (KA-01-EQ-4421)",
-      route: "Main Campus Express #1",
-      todayAttendance: "BOARDED",
-      status: "ACTIVE",
-    },
-    {
-      id: "stu-2",
-      studentId: "2025-MBA-0142",
-      name: "Priya Nair",
-      department: "Business Management",
-      semester: "Sem 2 (MBA)",
-      pickupPoint: "Science Block D",
-      assignedBus: "BUS-102 (KA-01-EQ-4422)",
-      route: "Science Park Route #4",
-      todayAttendance: "DROPPED",
-      status: "ACTIVE",
-    },
-    {
-      id: "stu-3",
-      studentId: "2023-AR-0012",
-      name: "Rohan Gupta",
-      department: "Engineering & Tech",
-      semester: "Sem 6 (B.Arch)",
-      pickupPoint: "Engineering Library",
-      assignedBus: "BUS-103 (KA-01-EQ-4425)",
-      route: "South Medical Center #2",
-      todayAttendance: "BOARDED",
-      status: "ACTIVE",
-    },
-    {
-      id: "stu-4",
-      studentId: "2024-LW-0084",
-      name: "Sanya Mehta",
-      department: "Law & Public Policy",
-      semester: "Sem 4 (LL.B)",
-      pickupPoint: "North Gate Hub",
-      assignedBus: "BUS-104 (KA-01-EQ-4430)",
-      route: "North Gateway Line #8",
-      todayAttendance: "BOARDED",
-      status: "ACTIVE",
-    },
-    {
-      id: "stu-5",
-      studentId: "2025-MD-0209",
-      name: "Kiran Rao",
-      department: "Medicine & Surgery",
-      semester: "Sem 2 (MBBS)",
-      pickupPoint: "Central Auditorium",
-      assignedBus: "BUS-105 (KA-01-EQ-4433)",
-      route: "Main Campus Express #1",
-      todayAttendance: "ABSENT",
-      status: "ACTIVE",
-    },
-    {
-      id: "stu-6",
-      studentId: "2023-CS-0412",
-      name: "Neha Joshi",
-      department: "Engineering & Tech",
-      semester: "Sem 6 (B.Tech CS)",
-      pickupPoint: "North Gate Hub",
-      assignedBus: "BUS-101 (KA-01-EQ-4421)",
-      route: "Main Campus Express #1",
-      todayAttendance: "BOARDED",
-      status: "ACTIVE",
-    },
-    {
-      id: "stu-7",
-      studentId: "2024-AH-0019",
-      name: "Devendra Patel",
-      department: "Arts & Humanities",
-      semester: "Sem 4 (B.A)",
-      pickupPoint: "Science Block D",
-      assignedBus: "BUS-106 (KA-01-EQ-4440)",
-      route: "Science Park Route #4",
-      todayAttendance: "BOARDED",
-      status: "ACTIVE",
-    },
-    {
-      id: "stu-8",
-      studentId: "2023-MD-0118",
-      name: "Ananya Iyer",
-      department: "Medicine & Surgery",
-      semester: "Sem 6 (MBBS)",
-      pickupPoint: "Engineering Library",
-      assignedBus: "BUS-103 (KA-01-EQ-4425)",
-      route: "South Medical Center #2",
-      todayAttendance: "DROPPED",
-      status: "ACTIVE",
-    },
-  ]
+  // Form State
+  const [formData, setFormData] = useState({
+    name: "",
+    admissionNumber: "",
+    department: "",
+    routeId: "",
+    busId: "",
+  })
 
-  const [students] = useState<StudentRecord[]>(initialStudents)
+  // Queries
+  const { data: apiStudents = [], isLoading } = useQuery({
+    queryKey: ["students"],
+    queryFn: async () => {
+      const res = await fetch("/api/students")
+      if (!res.ok) throw new Error("Failed to fetch students")
+      return res.json()
+    },
+  })
+
+  const { data: apiBuses = [] } = useQuery({
+    queryKey: ["buses"],
+    queryFn: async () => {
+      const res = await fetch("/api/buses")
+      if (!res.ok) throw new Error("Failed to fetch buses")
+      return res.json()
+    },
+  })
+
+  const { data: apiRoutes = [] } = useQuery({
+    queryKey: ["routes"],
+    queryFn: async () => {
+      const res = await fetch("/api/routes")
+      if (!res.ok) throw new Error("Failed to fetch routes")
+      return res.json()
+    },
+  })
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: async (newStudent: any) => {
+      const payload = {
+        ...newStudent,
+        parentName: "Default Parent", // Mock required field
+        parentMobileNumber: "+91 0000000000", // Mock required field
+      }
+
+      const res = await fetch("/api/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || "Failed to create student")
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] })
+      setIsAddModalOpen(false)
+      toast.success("Student enrolled and RFID card mapped successfully!")
+      setFormData({ name: "", admissionNumber: "", department: "", routeId: "", busId: "" })
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
 
   const filteredStudents = useMemo(() => {
-    return students.filter((stu) => {
+    return apiStudents.filter((stu: any) => {
       const matchesSearch =
-        stu.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        stu.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        stu.pickupPoint.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        stu.assignedBus.toLowerCase().includes(searchQuery.toLowerCase())
+        stu.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        stu.admissionNumber?.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesDept =
         selectedDeptFilter === "ALL" || stu.department === selectedDeptFilter
-      const matchesAttendance =
-        selectedAttendanceFilter === "ALL" || stu.todayAttendance === selectedAttendanceFilter
-      return matchesSearch && matchesDept && matchesAttendance
+      return matchesSearch && matchesDept
     })
-  }, [students, searchQuery, selectedDeptFilter, selectedAttendanceFilter])
+  }, [apiStudents, searchQuery, selectedDeptFilter])
 
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage) || 1
   const paginatedStudents = filteredStudents.slice(
@@ -185,7 +151,7 @@ export function StudentManagement() {
               Enterprise Student Transportation Directory
             </h1>
             <Badge className="bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-bold">
-              4,820 Total Enrolled
+              {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${apiStudents.length} Total Enrolled`}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
@@ -288,39 +254,30 @@ export function StudentManagement() {
             </thead>
             <tbody className="divide-y divide-border">
               {paginatedStudents.length > 0 ? (
-                paginatedStudents.map((stu) => (
+                paginatedStudents.map((stu: any) => (
                   <tr key={stu.id} className="hover:bg-muted/40 transition-colors">
                     <td className="py-4 px-4">
                       <div className="font-bold text-foreground">{stu.name}</div>
-                      <div className="text-xs font-mono text-muted-foreground">{stu.studentId}</div>
+                      <div className="text-xs font-mono text-muted-foreground">{stu.admissionNumber}</div>
                     </td>
                     <td className="py-4 px-4">
-                      <div className="font-semibold text-foreground">{stu.department}</div>
-                      <div className="text-xs text-muted-foreground">{stu.semester}</div>
+                      <div className="font-semibold text-foreground">{stu.department || "N/A"}</div>
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-1.5 text-foreground font-medium">
                         <MapPin className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                        <span>{stu.pickupPoint}</span>
+                        <span>{stu.pickupStop?.stopName || "Unassigned"}</span>
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="font-mono font-bold text-foreground">{stu.assignedBus}</span>
+                      <span className="font-mono font-bold text-foreground">{stu.bus?.busNumber || "Unassigned"}</span>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="font-medium text-foreground">{stu.route}</span>
+                      <span className="font-medium text-foreground">{stu.route?.name || "Unassigned"}</span>
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
-                          stu.todayAttendance === "BOARDED"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                            : stu.todayAttendance === "DROPPED"
-                            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-                            : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
-                        }`}
-                      >
-                        {stu.todayAttendance}
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
+                        N/A
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
@@ -409,21 +366,60 @@ export function StudentManagement() {
           <div className="space-y-4 py-4 text-sm">
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-foreground">Student Full Name</label>
-              <Input placeholder="e.g. Siddharth Verma" className="rounded-xl border-border h-9 text-sm" />
+              <Input 
+                placeholder="e.g. Siddharth Verma" 
+                className="rounded-xl border-border h-9 text-sm" 
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-foreground">Student Roll #</label>
-                <Input placeholder="2025-CS-0999" className="rounded-xl border-border h-9 text-sm" />
+                <Input 
+                  placeholder="2025-CS-0999" 
+                  className="rounded-xl border-border h-9 text-sm" 
+                  value={formData.admissionNumber}
+                  onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-foreground">Department</label>
-                <Input placeholder="Engineering & Tech" className="rounded-xl border-border h-9 text-sm" />
+                <Input 
+                  placeholder="Engineering & Tech" 
+                  className="rounded-xl border-border h-9 text-sm" 
+                  value={formData.department}
+                  onChange={e => setFormData({ ...formData, department: e.target.value })}
+                />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-foreground">Pickup Stop Point</label>
-              <Input placeholder="North Gate Hub" className="rounded-xl border-border h-9 text-sm" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-foreground">Route Corridor</label>
+                <select 
+                  className="w-full rounded-xl border border-border h-9 px-3 text-sm bg-card text-foreground"
+                  value={formData.routeId}
+                  onChange={e => setFormData({ ...formData, routeId: e.target.value })}
+                >
+                  <option value="">Select Route...</option>
+                  {apiRoutes.map((rt: any) => (
+                    <option key={rt.id} value={rt.id}>{rt.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-foreground">Assign Bus</label>
+                <select 
+                  className="w-full rounded-xl border border-border h-9 px-3 text-sm bg-card text-foreground"
+                  value={formData.busId}
+                  onChange={e => setFormData({ ...formData, busId: e.target.value })}
+                >
+                  <option value="">Select Bus...</option>
+                  {apiBuses.map((bus: any) => (
+                    <option key={bus.id} value={bus.id}>{bus.busNumber} ({bus.registrationNumber})</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
           <DialogFooter className="gap-2">
@@ -432,12 +428,12 @@ export function StudentManagement() {
             </Button>
             <Button
               onClick={() => {
-                setIsAddModalOpen(false)
-                toast.success("Student enrolled and RFID card mapped successfully!")
+                createMutation.mutate(formData)
               }}
+              disabled={createMutation.isPending || !formData.name || !formData.admissionNumber}
               className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold h-9 px-5"
             >
-              Enroll Student
+              {createMutation.isPending ? "Enrolling..." : "Enroll Student"}
             </Button>
           </DialogFooter>
         </DialogContent>
