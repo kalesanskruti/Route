@@ -3,6 +3,7 @@
 import React, { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { 
   Bus, 
   Route as RouteIcon, 
@@ -24,12 +25,14 @@ import {
   ChevronRight,
   Filter,
   Calendar,
-  Zap
+  Zap,
+  Download,
+  LayoutGrid
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AreaChart, Area, ResponsiveContainer, BarChart, Bar, Tooltip } from "recharts"
+import { AreaChart, Area, ResponsiveContainer, BarChart, Bar, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts"
 
 interface DashboardMetrics {
   totalBuses: number
@@ -42,26 +45,42 @@ interface DashboardMetrics {
   gpsOnlinePercent: number
 }
 
-// Mini SVG Sparkline Component for KPI Cards
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const chartData = data.map((val, idx) => ({ idx, val }))
+  // Remove the `#` from the color for the ID to avoid invalid HTML IDs
+  const cleanColorId = color.replace('#', '')
   return (
-    <div className="h-10 w-24">
+    <div className="h-14 w-28 relative -right-2 transition-transform duration-300 hover:scale-105">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+        <AreaChart data={chartData} margin={{ top: 5, right: 0, bottom: 0, left: 0 }}>
           <defs>
-            <linearGradient id={`gradient-${color}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={color} stopOpacity={0.4} />
+            <linearGradient id={`gradient-${cleanColorId}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={color} stopOpacity={0.6} />
               <stop offset="95%" stopColor={color} stopOpacity={0.0} />
             </linearGradient>
           </defs>
+          <Tooltip
+            cursor={{ stroke: color, strokeWidth: 1, strokeDasharray: '3 3' }}
+            contentStyle={{ 
+              backgroundColor: 'var(--card)', 
+              borderRadius: '8px', 
+              border: '1px solid var(--border)', 
+              fontSize: '11px', 
+              padding: '4px 8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            }}
+            itemStyle={{ color: color, fontWeight: 'bold' }}
+            labelStyle={{ display: 'none' }}
+          />
           <Area
             type="monotone"
             dataKey="val"
             stroke={color}
-            strokeWidth={2}
+            strokeWidth={3}
             fillOpacity={1}
-            fill={`url(#gradient-${color})`}
+            fill={`url(#gradient-${cleanColorId})`}
+            activeDot={{ r: 4, fill: color, stroke: 'var(--card)', strokeWidth: 2 }}
+            animationDuration={1500}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -71,10 +90,15 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 
 export function DashboardView() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [selectedTimeframe, setSelectedTimeframe] = useState("Today")
+
+  const role = session?.user?.role
+  const prefix = role === "SUPER_ADMIN" ? "/admin" : "/manager"
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery<{
     metrics: DashboardMetrics
+    hourlyRidershipData: Array<{ time: string; boarded: number; dropped: number }>
     recentScans: Array<{
       id: string
       student: { name: string; classSection: string }
@@ -98,9 +122,10 @@ export function DashboardView() {
               driversOnDuty: resJson.metrics?.driversOnDuty || 135,
               routesActive: resJson.metrics?.activeRoutes || 48,
               complianceAlerts: 3,
-              maintenanceDue: 6,
+              maintenanceDue: resJson.metrics?.busOverview?.maintenance || 6,
               gpsOnlinePercent: 98.4,
             },
+            hourlyRidershipData: resJson.hourlyRidershipData || [],
             recentScans: resJson.recentScans || [],
           }
         }
@@ -118,6 +143,15 @@ export function DashboardView() {
           maintenanceDue: 6,
           gpsOnlinePercent: 98.4,
         },
+        hourlyRidershipData: [
+          { time: "06:00", boarded: 120, dropped: 10 },
+          { time: "07:00", boarded: 840, dropped: 40 },
+          { time: "08:00", boarded: 1800, dropped: 150 },
+          { time: "09:00", boarded: 2100, dropped: 420 },
+          { time: "10:00", boarded: 800, dropped: 950 },
+          { time: "11:00", boarded: 300, dropped: 1100 },
+          { time: "12:00", boarded: 150, dropped: 850 },
+        ],
         recentScans: [
           {
             id: "scan-1",
@@ -153,15 +187,7 @@ export function DashboardView() {
     refetchInterval: 15000,
   })
 
-  const hourlyRidershipData = [
-    { time: "06:00", count: 420 },
-    { time: "07:00", count: 1840 },
-    { time: "08:00", count: 3200 },
-    { time: "09:00", count: 4820 },
-    { time: "10:00", count: 4210 },
-    { time: "11:00", count: 1980 },
-    { time: "12:00", count: 1240 },
-  ]
+  const hourlyRidershipData = data?.hourlyRidershipData || []
 
   const metrics = data?.metrics || {
     totalBuses: 142,
@@ -176,30 +202,17 @@ export function DashboardView() {
 
   const kpiCards = [
     {
-      title: "Total Buses",
-      value: `${metrics.totalBuses}`,
-      unit: "vehicles",
-      trend: "+4 new this sem",
+      title: "Active Fleet",
+      value: `${metrics.activeBuses} / ${metrics.totalBuses}`,
+      unit: "buses on duty",
+      trend: "90.1% operational",
       trendPositive: true,
       icon: Bus,
-      badgeText: "Active Fleet",
+      badgeText: "Online",
       badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
       sparkline: [120, 125, 130, 138, 140, 142],
       sparkColor: "#10B981",
-      onClick: () => router.push("/admin/buses"),
-    },
-    {
-      title: "Active Buses",
-      value: `${metrics.activeBuses}`,
-      unit: "in transit",
-      trend: "90.1% operational",
-      trendPositive: true,
-      icon: Radio,
-      badgeText: "Online",
-      badgeClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-      sparkline: [110, 115, 122, 126, 125, 128],
-      sparkColor: "#2563EB",
-      onClick: () => router.push("/admin/tracking"),
+      onClick: () => router.push(`${prefix}/buses`),
     },
     {
       title: "Students Transported Today",
@@ -209,75 +222,36 @@ export function DashboardView() {
       trendPositive: true,
       icon: Users,
       badgeText: "Live Scan",
-      badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-      sparkline: [3100, 3800, 4200, 4500, 4710, 4820],
-      sparkColor: "#10B981",
-      onClick: () => router.push("/admin/attendance"),
-    },
-    {
-      title: "Drivers On Duty",
-      value: `${metrics.driversOnDuty}`,
-      unit: "assigned drivers",
-      trend: "95% rostered",
-      trendPositive: true,
-      icon: UserCheck,
-      badgeText: "On Duty",
       badgeClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-      sparkline: [120, 125, 130, 132, 134, 135],
+      sparkline: [3100, 3800, 4200, 4500, 4710, 4820],
       sparkColor: "#3B82F6",
-      onClick: () => router.push("/admin/drivers"),
+      onClick: () => router.push(`${prefix}/attendance`),
     },
     {
-      title: "Routes Active",
-      value: `${metrics.routesActive}`,
-      unit: "campus lines",
-      trend: "All schedules on time",
-      trendPositive: true,
-      icon: RouteIcon,
-      badgeText: "100% On-Time",
-      badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-      sparkline: [44, 45, 46, 47, 48, 48],
-      sparkColor: "#10B981",
-      onClick: () => router.push("/admin/routes"),
-    },
-    {
-      title: "Compliance Alerts",
-      value: `${metrics.complianceAlerts}`,
-      unit: "expiring <30 days",
-      trend: "2 Permit • 1 Insurance",
+      title: "Operational Alerts",
+      value: `${metrics.complianceAlerts + metrics.maintenanceDue}`,
+      unit: "needs attention",
+      trend: "Maintenance & Compliance",
       trendPositive: false,
       icon: ShieldAlert,
       badgeText: "Action Needed",
       badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-      sparkline: [5, 4, 4, 3, 3, 3],
+      sparkline: [12, 10, 11, 10, 9, 9],
       sparkColor: "#F59E0B",
-      onClick: () => router.push("/admin/compliance"),
+      onClick: () => router.push(`${prefix}/compliance`),
     },
     {
-      title: "Maintenance Due",
-      value: `${metrics.maintenanceDue}`,
-      unit: "vehicles scheduled",
-      trend: "0 critical breakdowns",
-      trendPositive: true,
-      icon: Wrench,
-      badgeText: "Scheduled",
-      badgeClass: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20",
-      sparkline: [8, 7, 7, 6, 6, 6],
-      sparkColor: "#F97316",
-      onClick: () => router.push("/admin/maintenance"),
-    },
-    {
-      title: "GPS Online",
+      title: "System Health",
       value: `${metrics.gpsOnlinePercent}%`,
       unit: "telemetry uptime",
       trend: "+0.4% from last week",
       trendPositive: true,
-      icon: Map,
+      icon: Radio,
       badgeText: "Strong Signal",
-      badgeClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+      badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
       sparkline: [97.5, 98.0, 98.1, 98.3, 98.4, 98.4],
-      sparkColor: "#2563EB",
-      onClick: () => router.push("/admin/tracking"),
+      sparkColor: "#10B981",
+      onClick: () => router.push(`${prefix}/tracking`),
     },
   ]
 
@@ -385,350 +359,204 @@ export function DashboardView() {
         ))}
       </div>
 
-      {/* Grid Row 2: Live Fleet Map Preview (8 cols) & Critical Operational Alerts (4 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Live Fleet Tracking Widget */}
-        <Card className="lg:col-span-8 rounded-2xl border-border bg-card shadow-sm">
+      {/* Analytics & Actions Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Analytics Canvas */}
+        <Card className="lg:col-span-2 rounded-2xl border-border bg-card shadow-sm flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-border">
             <div>
               <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Map className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                Live Fleet Telemetry & Campus Transit Map
+                <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                Hourly Student Ridership & Fleet Utilization
               </CardTitle>
               <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                Real-time tracking of 128 active buses along 48 university transport corridors
+                Real-time peak tracking across all operating campus corridors
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
-                128 Online
-              </Badge>
-              <Badge variant="outline" className="text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                6 In Maintenance
-              </Badge>
-              <Button
-                size="sm"
-                onClick={() => router.push("/admin/tracking")}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl h-8 px-3"
-              >
-                Open Full Map
-                <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
-            </div>
           </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Left side: Quick ridership chart */}
-              <div className="md:col-span-2 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Today&apos;s Hourly Student Ridership Curve
-                  </span>
-                  <span className="text-xs font-mono font-semibold text-foreground">
-                    Peak: 09:00 AM (4,820 Riders)
-                  </span>
-                </div>
-                <div className="h-56 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={hourlyRidershipData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "var(--card)",
-                          borderColor: "var(--border)",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                        }}
-                      />
-                      <Bar dataKey="count" fill="#2563EB" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Right side: Campus Quick Status Cards */}
-              <div className="space-y-3">
-                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                  Campus Active Routes
-                </div>
-                <div
-                  onClick={() => router.push("/admin/routes")}
-                  className="p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
-                    <span>Main Campus (North)</span>
-                    <span className="text-emerald-600 dark:text-emerald-400">100% On-Time</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
-                    <span>22 Routes • 64 Buses</span>
-                    <span>2,410 students</span>
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => router.push("/admin/routes")}
-                  className="p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
-                    <span>Science & Tech Park</span>
-                    <span className="text-emerald-600 dark:text-emerald-400">98.5% On-Time</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
-                    <span>16 Routes • 42 Buses</span>
-                    <span>1,480 students</span>
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => router.push("/admin/routes")}
-                  className="p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
-                    <span>South Medical Campus</span>
-                    <span className="text-blue-600 dark:text-blue-400">In Transit</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
-                    <span>10 Routes • 36 Buses</span>
-                    <span>930 students</span>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push("/admin/analytics")}
-                  className="w-full text-xs font-semibold rounded-xl h-8"
-                >
-                  View Full Analytics Platform →
-                </Button>
-              </div>
-            </div>
+          <CardContent className="p-6 flex-1 flex flex-col justify-center min-h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={hourlyRidershipData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorBoarded" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorDropped" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.4} />
+                  <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)' }}
+                    itemStyle={{ fontWeight: 'bold' }}
+                    labelStyle={{ color: 'var(--foreground)', marginBottom: '4px' }}
+                  />
+                  <Area type="monotone" name="Boarded" dataKey="boarded" stackId="1" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorBoarded)" activeDot={{ r: 6, strokeWidth: 0, fill: '#10B981' }} />
+                  <Area type="monotone" name="Dropped Off" dataKey="dropped" stackId="1" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorDropped)" activeDot={{ r: 6, strokeWidth: 0, fill: '#3b82f6' }} />
+                </AreaChart>
+             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Critical Compliance & Maintenance Alerts Feed */}
-        <Card className="lg:col-span-4 rounded-2xl border-border bg-card shadow-sm flex flex-col justify-between">
-          <CardHeader className="pb-4 border-b border-border">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-foreground flex items-center gap-2">
-                <ShieldAlert className="h-5 w-5 text-amber-500" />
-                Compliance & Fleet Alerts
-              </CardTitle>
-              <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-bold text-xs">
-                3 Action Required
-              </Badge>
-            </div>
-            <CardDescription className="text-xs text-muted-foreground mt-0.5">
-              Urgent statutory renewals and service schedules
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 space-y-3 flex-1 overflow-y-auto max-h-80">
-            {/* Alert 1: State Permit */}
-            <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 flex items-start gap-3">
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground">Permit Expiry (<span className="text-amber-600 dark:text-amber-400">4 Days</span>)</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-semibold">BUS-402</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  KA-01-EQ-4421 state route permit expires Aug 5.
-                </p>
-                <button
-                  onClick={() => router.push("/admin/compliance")}
-                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline mt-1.5 block"
-                >
-                  Upload New Certificate →
-                </button>
-              </div>
-            </div>
-
-            {/* Alert 2: Insurance */}
-            <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 flex items-start gap-3">
-              <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground">Insurance Renewal (<span className="text-amber-600 dark:text-amber-400">12 Days</span>)</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-semibold">BUS-118</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  ICICI Lombard Comprehensive policy renewal pending.
-                </p>
-                <button
-                  onClick={() => router.push("/admin/compliance")}
-                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline mt-1.5 block"
-                >
-                  Renew Policy →
-                </button>
-              </div>
-            </div>
-
-            {/* Alert 3: Maintenance Due */}
-            <div className="p-3 rounded-xl border border-orange-500/30 bg-orange-500/5 flex items-start gap-3">
-              <Wrench className="h-4 w-4 text-orange-600 dark:text-orange-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground">10,000 km Service Due</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600 font-semibold">6 Vehicles</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Scheduled preventive maintenance at Central Workshop.
-                </p>
-                <button
-                  onClick={() => router.push("/admin/maintenance")}
-                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline mt-1.5 block"
-                >
-                  Open Maintenance Hub →
-                </button>
-              </div>
-            </div>
-          </CardContent>
-          <div className="p-4 border-t border-border bg-muted/10">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push("/admin/compliance")}
-              className="w-full text-xs font-semibold rounded-xl"
-            >
-              View All 14 Compliance Audit Records
-            </Button>
-          </div>
-        </Card>
-      </div>
-
-      {/* Grid Row 3: Live RFID Student Scan Feed (8 cols) & Quick Navigation Cards (4 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Live RFID Scans */}
-        <Card className="lg:col-span-8 rounded-2xl border-border bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-border">
-            <div>
+        {/* Sidebar: Quick Actions & Live Feed */}
+        <div className="space-y-6">
+          {/* Quick Actions */}
+          <Card className="rounded-2xl border-border bg-card shadow-sm">
+            <CardHeader className="pb-4 border-b border-border">
               <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-                <Users className="h-4.5 w-4.5 text-emerald-500" />
-                Live Student RFID Boarding & Drop-Off Feed
+                <Zap className="h-5 w-5 text-amber-500" />
+                Quick Actions
               </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                Real-time student card taps from smart card readers on active campus routes
-              </CardDescription>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/admin/attendance")}
-              className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              View Full Attendance Roster →
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border">
-              {data?.recentScans && data.recentScans.length > 0 ? (
-                data.recentScans.map((scan) => (
-                  <div key={scan.id} className="flex items-center justify-between px-6 py-3.5 hover:bg-muted/40 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-xs border border-blue-500/20">
-                        {scan.student.name.charAt(0)}
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <Button onClick={() => router.push(`${prefix}/tracking`)} className="w-full justify-start text-left h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm">
+                <Map className="h-4 w-4 mr-3 opacity-70" /> Dispatch New Bus
+              </Button>
+              <Button onClick={() => router.push(`${prefix}/compliance`)} variant="outline" className="w-full justify-start text-left h-10 rounded-xl border-border font-semibold shadow-sm text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+                <ShieldAlert className="h-4 w-4 mr-3 opacity-70" /> Review Active Alerts (3)
+              </Button>
+              <Button variant="outline" className="w-full justify-start text-left h-10 rounded-xl border-border font-semibold shadow-sm">
+                <Download className="h-4 w-4 mr-3 opacity-70" /> Generate EOD Report
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Live Activity Feed */}
+          <Card className="rounded-2xl border-border bg-card shadow-sm">
+            <CardHeader className="pb-4 border-b border-border">
+              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <Radio className="h-5 w-5 text-emerald-500" />
+                Live Telemetry Feed
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+               <div className="divide-y divide-border">
+                 {data?.recentScans?.map((scan) => (
+                    <div key={scan.id} className="p-4 flex items-start gap-3 hover:bg-muted/30 transition-colors">
+                      <div className={`mt-0.5 h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${scan.status === "BOARDED" ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+                        <CheckCircle2 className="h-4 w-4" />
                       </div>
                       <div>
-                        <div className="text-sm font-bold text-foreground">{scan.student.name}</div>
-                        <div className="text-xs text-muted-foreground">{scan.student.classSection}</div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {scan.student.name} <span className="font-normal text-muted-foreground">{scan.status === "BOARDED" ? "boarded" : "was dropped off"}</span>
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{scan.route.name} • {scan.timestamp}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs font-medium text-muted-foreground hidden sm:inline">
-                        {scan.route.name}
-                      </span>
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
-                          scan.status === "BOARDED"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                            : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-                        }`}
-                      >
-                        {scan.status}
-                      </span>
-                      <span className="text-xs font-mono text-muted-foreground">{scan.timestamp}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-8 text-center text-muted-foreground text-sm">
-                  No scan logs recorded yet today.
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Enterprise Shortcuts */}
-        <Card className="lg:col-span-4 rounded-2xl border-border bg-card shadow-sm flex flex-col justify-between">
-          <CardHeader className="pb-4 border-b border-border">
-            <CardTitle className="text-base font-bold text-foreground">
-              Enterprise Operations Center
-            </CardTitle>
-            <CardDescription className="text-xs text-muted-foreground mt-0.5">
-              Rapid access to fleet management dossiers
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 space-y-2.5">
-            <button
-              onClick={() => router.push("/admin/buses")}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-border hover:bg-muted/60 transition-colors text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                  <Bus className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-foreground">Bus Management Table</div>
-                  <div className="text-[11px] text-muted-foreground">Manage 142 vehicles & details</div>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
-
-            <button
-              onClick={() => router.push("/admin/drivers")}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-border hover:bg-muted/60 transition-colors text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                  <UserCheck className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-foreground">Driver Profile Cards</div>
-                  <div className="text-[11px] text-muted-foreground">135 drivers • Safety ratings</div>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
-
-            <button
-              onClick={() => router.push("/admin/reports")}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-border hover:bg-muted/60 transition-colors text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <Calendar className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-foreground">Report Generation Center</div>
-                  <div className="text-[11px] text-muted-foreground">Export PDF & Excel dossiers</div>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </CardContent>
-          <div className="p-4 border-t border-border bg-muted/10">
-            <Button
-              onClick={() => router.push("/admin/support")}
-              variant="outline"
-              size="sm"
-              className="w-full text-xs font-semibold rounded-xl"
-            >
-              Contact 24/7 Dedicated Support
-            </Button>
-          </div>
-        </Card>
+                 )) || (
+                   <div className="p-6 text-center text-sm text-muted-foreground">
+                     No recent telemetry data available.
+                   </div>
+                 )}
+               </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      {/* Grid Row 3: All Access Modules */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <LayoutGrid className="h-5 w-5 text-foreground" />
+          <h2 className="text-lg font-bold text-foreground">Module Access</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <Card 
+            onClick={() => router.push(`${prefix}/buses`)}
+            className="cursor-pointer hover:shadow-md hover:border-blue-500/30 transition-all rounded-2xl group border-border bg-card"
+          >
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center space-y-2">
+              <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Bus className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">Fleet</div>
+                <div className="text-[10px] text-muted-foreground">{metrics.totalBuses} Vehicles</div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card 
+            onClick={() => router.push(`${prefix}/routes`)}
+            className="cursor-pointer hover:shadow-md hover:border-emerald-500/30 transition-all rounded-2xl group border-border bg-card"
+          >
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center space-y-2">
+              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <RouteIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">Routes</div>
+                <div className="text-[10px] text-muted-foreground">{metrics.routesActive} Active</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            onClick={() => router.push(`${prefix}/drivers`)}
+            className="cursor-pointer hover:shadow-md hover:border-violet-500/30 transition-all rounded-2xl group border-border bg-card"
+          >
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center space-y-2">
+              <div className="h-10 w-10 rounded-xl bg-violet-500/10 text-violet-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <UserCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">Drivers</div>
+                <div className="text-[10px] text-muted-foreground">{metrics.driversOnDuty} Rostered</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            onClick={() => router.push(`${prefix}/attendance`)}
+            className="cursor-pointer hover:shadow-md hover:border-pink-500/30 transition-all rounded-2xl group border-border bg-card"
+          >
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center space-y-2">
+              <div className="h-10 w-10 rounded-xl bg-pink-500/10 text-pink-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">Students</div>
+                <div className="text-[10px] text-muted-foreground">Directory</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            onClick={() => router.push(`${prefix}/tracking`)}
+            className="cursor-pointer hover:shadow-md hover:border-amber-500/30 transition-all rounded-2xl group border-border bg-card"
+          >
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center space-y-2">
+              <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">Trips</div>
+                <div className="text-[10px] text-muted-foreground">Live Tracking</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            onClick={() => router.push(`${prefix}/compliance`)}
+            className="cursor-pointer hover:shadow-md hover:border-orange-500/30 transition-all rounded-2xl group border-border bg-card"
+          >
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center space-y-2">
+              <div className="h-10 w-10 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">Compliance</div>
+                <div className="text-[10px] text-muted-foreground">Audit Hub</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
     </div>
   )
 }

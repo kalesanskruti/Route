@@ -37,9 +37,10 @@ import { toast } from "sonner"
 
 interface BusDetailsViewProps {
   busId: string
+  onClose?: () => void
 }
 
-export function BusDetailsView({ busId }: BusDetailsViewProps) {
+export function BusDetailsView({ busId, onClose }: BusDetailsViewProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<
     | "VEHICLE"
@@ -61,6 +62,7 @@ export function BusDetailsView({ busId }: BusDetailsViewProps) {
     id: busId,
     busNumber: "BUS-101",
     registrationNumber: "KA-01-EQ-4421",
+    image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=800",
     make: "Tata Motors",
     model: "Starbus Ultra EV 40-Seater",
     year: 2023,
@@ -114,7 +116,7 @@ export function BusDetailsView({ busId }: BusDetailsViewProps) {
     },
     driver: {
       name: "Rajesh Kumar",
-      photo: "R",
+      photo: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=200",
       phone: "+91 98450 11223",
       emergencyContact: "+91 98450 99887",
       licenseNumber: "DL-042018001",
@@ -192,27 +194,36 @@ export function BusDetailsView({ busId }: BusDetailsViewProps) {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => router.push("/admin/buses")}
+            onClick={() => {
+              if (onClose) return onClose()
+              const basePath = window.location.pathname.startsWith('/manager') ? '/manager' : '/admin'
+              router.push(`${basePath}/buses`)
+            }}
             className="rounded-xl h-9 w-9 border-border hover:bg-muted"
-            title="Back to Bus Roster"
+            title="Back"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-                {bus.busNumber}
-              </h1>
-              <span className="text-sm font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                {bus.registrationNumber}
-              </span>
-              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold">
-                Online Telemetry
-              </Badge>
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-16 md:h-16 md:w-24 rounded-lg overflow-hidden border border-border shrink-0 shadow-sm">
+              <img src={bus.image} alt="Bus" className="h-full w-full object-cover" />
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {bus.year} {bus.make} {bus.model} • VIN: {bus.vin}
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+                  {bus.busNumber}
+                </h1>
+                <span className="text-sm font-mono font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                  {bus.registrationNumber}
+                </span>
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold">
+                  Online Telemetry
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {bus.year} {bus.make} {bus.model} • VIN: {bus.vin}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -277,6 +288,12 @@ export function BusDetailsView({ busId }: BusDetailsViewProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6">
+              <div className="mb-6 rounded-xl overflow-hidden border border-border h-48 sm:h-64 relative">
+                <img src={bus.image} alt={bus.make} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-4">
+                   <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md font-bold">Verified Asset</Badge>
+                </div>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
@@ -734,8 +751,8 @@ export function BusDetailsView({ busId }: BusDetailsViewProps) {
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-white text-xl font-bold">
-                  {bus.driver.photo}
+                <div className="h-14 w-14 rounded-2xl overflow-hidden border border-border shadow-sm shrink-0">
+                  <img src={bus.driver.photo} alt={bus.driver.name} className="h-full w-full object-cover" />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-foreground">{bus.driver.name}</h3>

@@ -8,9 +8,12 @@ import { busSchema } from "@/lib/validations";
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     requireRole(session, ["SUPER_ADMIN", "TRANSPORT_MANAGER"]);
 
-    const buses = await BusService.getAll();
+    const buses = await BusService.getAll(session.user.institutionId);
     return NextResponse.json(buses);
   } catch (error: any) {
     console.error("GET /api/buses error:", error);
@@ -24,6 +27,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     requireRole(session, ["SUPER_ADMIN", "TRANSPORT_MANAGER"]);
 
     const body = await request.json();
@@ -36,7 +42,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const bus = await BusService.create(result.data);
+    const busData = { ...result.data, institutionId: session.user.institutionId };
+    const bus = await BusService.create(busData);
     return NextResponse.json(bus);
   } catch (error: any) {
     console.error("POST /api/buses error:", error);

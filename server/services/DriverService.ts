@@ -15,17 +15,40 @@ export class DriverService {
 
   static async create(data: {
     name: string;
+    employeeId?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    joiningDate?: Date | null;
     licenseNumber: string;
+    licenseType?: string | null;
     licenseExpiry: Date;
-    contactDetails: string;
+    contactDetails?: string | null;
     userId?: string | null;
+    busId?: string | null;
+    institutionId?: string | null;
   }) {
-    return db.driver.create({
-      data: {
-        ...data,
-        isArchived: false,
-        busId: null, // System-assigned via RouteService only
-      },
+    const { busId, ...driverData } = data;
+
+    return db.$transaction(async (tx) => {
+      const driver = await tx.driver.create({
+        data: {
+          ...driverData,
+          isArchived: false,
+          busId,
+        },
+      });
+
+      if (busId) {
+        const route = await tx.route.findFirst({ where: { busId, isArchived: false } });
+        if (route) {
+          await tx.route.update({
+            where: { id: route.id },
+            data: { driverId: driver.id },
+          });
+        }
+      }
+
+      return driver;
     });
   }
 
@@ -33,18 +56,48 @@ export class DriverService {
     id: string,
     data: Partial<{
       name: string;
+      employeeId?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      joiningDate?: Date | null;
       licenseNumber: string;
+      licenseType?: string | null;
       licenseExpiry: Date;
-      contactDetails: string;
+      contactDetails?: string | null;
       userId?: string | null;
+      busId?: string | null;
     }>
   ) {
-    // Remove busId from inputs if present to avoid direct updates
     const { busId, ...sanitizedData } = data as any;
 
-    return db.driver.update({
-      where: { id },
-      data: sanitizedData,
+    return db.$transaction(async (tx) => {
+      const driver = await tx.driver.update({
+        where: { id },
+        data: {
+          ...sanitizedData,
+          ...(busId !== undefined ? { busId } : {}),
+        },
+      });
+
+      if (busId !== undefined) {
+        // Clear this driver from any old routes
+        await tx.route.updateMany({
+          where: { driverId: id },
+          data: { driverId: null },
+        });
+
+        if (busId) {
+          const newRoute = await tx.route.findFirst({ where: { busId, isArchived: false } });
+          if (newRoute) {
+            await tx.route.update({
+              where: { id: newRoute.id },
+              data: { driverId: driver.id },
+            });
+          }
+        }
+      }
+
+      return driver;
     });
   }
 

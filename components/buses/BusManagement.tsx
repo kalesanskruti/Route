@@ -23,9 +23,10 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCheck,
-  Check,
   Send,
+  Loader2,
 } from "lucide-react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,138 +73,133 @@ export function BusManagement() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const itemsPerPage = 8
+  const queryClient = useQueryClient()
+  const { data: apiBuses = [], isLoading } = useQuery({
+    queryKey: ["buses"],
+    queryFn: async () => {
+      const response = await fetch("/api/buses")
+      if (!response.ok) throw new Error("Failed to fetch buses")
+      return response.json()
+    },
+  })
 
-  // Enterprise Mock Fleet Data (in production combined with query API)
-  const initialBuses: BusRecord[] = [
-    {
-      id: "bus-1",
-      busNumber: "BUS-101",
-      registrationNumber: "KA-01-EQ-4421",
-      driver: { name: "Rajesh Kumar", phone: "+91 98450 11223", licenseNumber: "DL-042018001" },
-      capacity: 52,
-      route: "Main Campus Express #1",
-      gpsStatus: "ONLINE",
-      compliance: "VALID",
-      maintenanceStatus: "GOOD",
-      mileage: 48210,
-      year: 2023,
-      model: "Tata Starbus Ultra EV",
+  const { data: activeRoutes = [] } = useQuery({
+    queryKey: ["routes"],
+    queryFn: async () => {
+      const response = await fetch("/api/routes")
+      if (!response.ok) throw new Error("Failed to fetch routes")
+      return response.json()
     },
-    {
-      id: "bus-2",
-      busNumber: "BUS-102",
-      registrationNumber: "KA-01-EQ-4422",
-      driver: { name: "Anil Sharma", phone: "+91 98450 11224", licenseNumber: "DL-042018002" },
-      capacity: 52,
-      route: "Science Park Route #4",
-      gpsStatus: "ONLINE",
-      compliance: "VALID",
-      maintenanceStatus: "GOOD",
-      mileage: 39400,
-      year: 2023,
-      model: "Tata Starbus Ultra EV",
-    },
-    {
-      id: "bus-3",
-      busNumber: "BUS-103",
-      registrationNumber: "KA-01-EQ-4425",
-      driver: { name: "Vikram Patel", phone: "+91 98450 11229", licenseNumber: "DL-042018005" },
-      capacity: 40,
-      route: "South Medical Center #2",
-      gpsStatus: "ONLINE",
-      compliance: "EXPIRING",
-      maintenanceStatus: "DUE",
-      mileage: 82140,
-      year: 2021,
-      model: "Ashok Leyland Viking",
-    },
-    {
-      id: "bus-4",
-      busNumber: "BUS-104",
-      registrationNumber: "KA-01-EQ-4430",
-      driver: { name: "Suresh Singh", phone: "+91 98450 11234", licenseNumber: "DL-042018009" },
-      capacity: 40,
-      route: "North Gateway Line #8",
-      gpsStatus: "ONLINE",
-      compliance: "VALID",
-      maintenanceStatus: "GOOD",
-      mileage: 51200,
-      year: 2022,
-      model: "Eicher Skyline Pro",
-    },
-    {
-      id: "bus-5",
-      busNumber: "BUS-105",
-      registrationNumber: "KA-01-EQ-4433",
-      driver: { name: "Karthik Rao", phone: "+91 98450 11239", licenseNumber: "DL-042018012" },
-      capacity: 52,
-      route: "Main Campus Express #1",
-      gpsStatus: "OFFLINE",
-      compliance: "EXPIRED",
-      maintenanceStatus: "IN_WORKSHOP",
-      mileage: 94500,
-      year: 2020,
-      model: "Ashok Leyland Viking",
-    },
-    {
-      id: "bus-6",
-      busNumber: "BUS-106",
-      registrationNumber: "KA-01-EQ-4440",
-      driver: { name: "Manoj Verma", phone: "+91 98450 11242", licenseNumber: "DL-042018015" },
-      capacity: 40,
-      route: "Science Park Route #4",
-      gpsStatus: "ONLINE",
-      compliance: "VALID",
-      maintenanceStatus: "GOOD",
-      mileage: 28400,
-      year: 2024,
-      model: "Tata Starbus Ultra EV",
-    },
-    {
-      id: "bus-7",
-      busNumber: "BUS-107",
-      registrationNumber: "KA-01-EQ-4448",
-      driver: { name: "Pradeep Nair", phone: "+91 98450 11248", licenseNumber: "DL-042018019" },
-      capacity: 52,
-      route: "South Medical Center #2",
-      gpsStatus: "ONLINE",
-      compliance: "VALID",
-      maintenanceStatus: "DUE",
-      mileage: 63100,
-      year: 2022,
-      model: "Eicher Skyline Pro",
-    },
-    {
-      id: "bus-8",
-      busNumber: "BUS-108",
-      registrationNumber: "KA-01-EQ-4451",
-      driver: { name: "Harish Pillai", phone: "+91 98450 11251", licenseNumber: "DL-042018022" },
-      capacity: 40,
-      route: "North Gateway Line #8",
-      gpsStatus: "ONLINE",
-      compliance: "VALID",
-      maintenanceStatus: "GOOD",
-      mileage: 41200,
-      year: 2023,
-      model: "Tata Starbus Ultra EV",
-    },
-    {
-      id: "bus-9",
-      busNumber: "BUS-109",
-      registrationNumber: "KA-01-EQ-4460",
-      driver: { name: "Gaurav Joshi", phone: "+91 98450 11260", licenseNumber: "DL-042018029" },
-      capacity: 52,
-      route: "Main Campus Express #1",
-      gpsStatus: "ONLINE",
-      compliance: "VALID",
-      maintenanceStatus: "GOOD",
-      mileage: 18900,
-      year: 2024,
-      model: "Tata Starbus Ultra EV",
-    },
-  ]
+  })
 
-  const [buses, setBuses] = useState<BusRecord[]>(initialBuses)
+  // Form State
+  const [formData, setFormData] = useState({
+    busNumber: "",
+    registrationNumber: "",
+    seatingCapacity: 52,
+    manufacturingYear: 2024,
+    routeId: "",
+  })
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: async (newBus: any) => {
+      const routeId = newBus.routeId;
+      delete newBus.routeId;
+
+      // Ensure all required fields for busSchema are met with defaults if missing from UI
+      const busPayload = {
+        ...newBus,
+        vehicleType: "Diesel", // Default mock
+        insuranceNumber: "INS-" + Date.now(),
+        insuranceExpiry: new Date(Date.now() + 31536000000).toISOString(),
+        fitnessExpiry: new Date(Date.now() + 31536000000).toISOString(),
+        gpsDeviceId: "GPS-" + newBus.busNumber
+      };
+
+      const res = await fetch("/api/buses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(busPayload),
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || "Failed to create bus")
+      }
+      const createdBus = await res.json()
+
+      if (routeId) {
+        await fetch(`/api/routes/${routeId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ busId: createdBus.id })
+        })
+      }
+      return createdBus
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["buses"] })
+      queryClient.invalidateQueries({ queryKey: ["routes"] })
+      setIsAddModalOpen(false)
+      toast.success("New fleet vehicle registered successfully!")
+      setFormData({ busNumber: "", registrationNumber: "", seatingCapacity: 52, manufacturingYear: 2024, routeId: "" })
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Map API response to UI model
+  const buses: BusRecord[] = useMemo(() => {
+    if (!apiBuses) return []
+    return apiBuses.map((bus: any) => {
+      // Calculate compliance status
+      const now = new Date()
+      let complianceStatus: "VALID" | "EXPIRING" | "EXPIRED" = "VALID"
+      
+      const insExpiry = bus.insuranceExpiry ? new Date(bus.insuranceExpiry) : null
+      const fitExpiry = bus.fitnessExpiry ? new Date(bus.fitnessExpiry) : null
+      
+      let earliestExpiry: Date | null = null
+      if (insExpiry && fitExpiry) {
+        earliestExpiry = insExpiry < fitExpiry ? insExpiry : fitExpiry
+      } else if (insExpiry) {
+        earliestExpiry = insExpiry
+      } else if (fitExpiry) {
+        earliestExpiry = fitExpiry
+      }
+
+      if (earliestExpiry) {
+        const daysUntilExpiry = Math.ceil((earliestExpiry.getTime() - now.getTime()) / (1000 * 3600 * 24))
+        
+        if (daysUntilExpiry < 0) {
+          complianceStatus = "EXPIRED"
+        } else if (daysUntilExpiry <= 30) {
+          complianceStatus = "EXPIRING"
+        }
+      }
+
+      const assignedDriver = (bus.drivers && bus.drivers.length > 0) ? bus.drivers[0] : { name: "Unassigned", phone: "-", licenseNumber: "-" }
+      const routeNames = bus.routes && bus.routes.length > 0 
+        ? bus.routes.map((r: any) => r.name).join(", ")
+        : "Unassigned"
+
+      return {
+        id: bus.id,
+        busNumber: bus.busNumber,
+        registrationNumber: bus.registrationNumber,
+        driver: assignedDriver,
+        capacity: bus.seatingCapacity,
+        route: routeNames,
+        gpsStatus: bus.status === "ACTIVE" ? "ONLINE" : "OFFLINE", // Or use live gps state if available
+        compliance: complianceStatus,
+        maintenanceStatus: "GOOD", // Placeholder for actual maintenance logic
+        mileage: 0, // Placeholder
+        year: bus.manufacturingYear || 2023,
+        model: bus.model || bus.vehicleType || "Unknown",
+      }
+    })
+  }, [apiBuses])
 
   // Filter & Sort computation
   const filteredAndSortedBuses = useMemo(() => {
@@ -283,7 +279,7 @@ export function BusManagement() {
               Enterprise Fleet Bus Management
             </h1>
             <Badge className="bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-bold">
-              {buses.length} Vehicles
+              {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${buses.length} Vehicles`}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
@@ -448,7 +444,14 @@ export function BusManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-sm">
-              {paginatedBuses.length > 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center text-muted-foreground text-sm">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-blue-500" />
+                    Syncing fleet data...
+                  </td>
+                </tr>
+              ) : paginatedBuses.length > 0 ? (
                 paginatedBuses.map((bus) => {
                   const isSelected = selectedBusIds.includes(bus.id)
                   return (
@@ -540,13 +543,16 @@ export function BusManagement() {
                       <td className="py-4 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Button
-                            onClick={() => router.push(`/admin/buses/${bus.id}`)}
+                            onClick={() => {
+                              const basePath = window.location.pathname.startsWith('/manager') ? '/manager' : '/admin'
+                              router.push(`${basePath}/buses/${bus.id}`)
+                            }}
                             size="sm"
                             variant="outline"
                             className="h-8 rounded-xl text-xs font-semibold border-border hover:bg-muted text-blue-600 dark:text-blue-400"
                           >
                             <Eye className="h-3.5 w-3.5 mr-1" />
-                            Dossier
+                            View
                           </Button>
                         </div>
                       </td>
@@ -615,7 +621,7 @@ export function BusManagement() {
               Register New Fleet Bus
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Enter statutory registration, capacity, and driver assignment details
+              Enter statutory registration, capacity, and assign to a route
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -624,13 +630,23 @@ export function BusManagement() {
                 <label className="text-xs font-bold text-foreground uppercase tracking-wider">
                   Bus Number
                 </label>
-                <Input placeholder="e.g. BUS-110" className="rounded-xl border-border h-9 text-sm" />
+                <Input 
+                  placeholder="e.g. BUS-110" 
+                  className="rounded-xl border-border h-9 text-sm" 
+                  value={formData.busNumber}
+                  onChange={e => setFormData({ ...formData, busNumber: e.target.value })}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground uppercase tracking-wider">
                   Registration Number
                 </label>
-                <Input placeholder="e.g. KA-01-EQ-5501" className="rounded-xl border-border h-9 text-sm" />
+                <Input 
+                  placeholder="e.g. KA-01-EQ-5501" 
+                  className="rounded-xl border-border h-9 text-sm" 
+                  value={formData.registrationNumber}
+                  onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -638,26 +654,39 @@ export function BusManagement() {
                 <label className="text-xs font-bold text-foreground uppercase tracking-wider">
                   Seating Capacity
                 </label>
-                <Input type="number" defaultValue={52} className="rounded-xl border-border h-9 text-sm" />
+                <Input 
+                  type="number" 
+                  className="rounded-xl border-border h-9 text-sm" 
+                  value={formData.seatingCapacity}
+                  onChange={e => setFormData({ ...formData, seatingCapacity: parseInt(e.target.value) || 0 })}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground uppercase tracking-wider">
                   Vehicle Year
                 </label>
-                <Input type="number" defaultValue={2024} className="rounded-xl border-border h-9 text-sm" />
+                <Input 
+                  type="number" 
+                  className="rounded-xl border-border h-9 text-sm" 
+                  value={formData.manufacturingYear}
+                  onChange={e => setFormData({ ...formData, manufacturingYear: parseInt(e.target.value) || 0 })}
+                />
               </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-foreground uppercase tracking-wider">
-                Assigned Driver
+                Route Corridor (Optional)
               </label>
-              <Input placeholder="Search Driver Roster..." className="rounded-xl border-border h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground uppercase tracking-wider">
-                Route Corridor
-              </label>
-              <Input placeholder="e.g. Main Campus Express #1" className="rounded-xl border-border h-9 text-sm" />
+              <select 
+                className="w-full rounded-xl border border-border h-9 px-3 text-sm bg-card text-foreground"
+                value={formData.routeId}
+                onChange={e => setFormData({ ...formData, routeId: e.target.value })}
+              >
+                <option value="">Do not assign route yet</option>
+                {activeRoutes.map((rt: any) => (
+                  <option key={rt.id} value={rt.id}>{rt.name}</option>
+                ))}
+              </select>
             </div>
           </div>
           <DialogFooter className="gap-2">
@@ -670,12 +699,12 @@ export function BusManagement() {
             </Button>
             <Button
               onClick={() => {
-                setIsAddModalOpen(false)
-                toast.success("New fleet vehicle registered successfully!")
+                createMutation.mutate(formData)
               }}
+              disabled={createMutation.isPending || !formData.busNumber || !formData.registrationNumber}
               className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold h-9 px-5"
             >
-              Register Bus
+              {createMutation.isPending ? "Registering..." : "Register Bus"}
             </Button>
           </DialogFooter>
         </DialogContent>

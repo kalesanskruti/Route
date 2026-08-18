@@ -206,7 +206,7 @@ export function AttendanceView() {
 
       {/* 4 Attendance Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex items-center justify-between">
+        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex flex-row items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Today&apos;s Boardings</span>
             <div className="text-2xl font-extrabold text-foreground mt-1">4,820</div>
@@ -217,7 +217,7 @@ export function AttendanceView() {
           </div>
         </Card>
 
-        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex items-center justify-between">
+        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex flex-row items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">On-Time Boarding</span>
             <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">99.8%</div>
@@ -228,7 +228,7 @@ export function AttendanceView() {
           </div>
         </Card>
 
-        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex items-center justify-between">
+        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex flex-row items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Missing RFID Taps</span>
             <div className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">6</div>
@@ -239,7 +239,7 @@ export function AttendanceView() {
           </div>
         </Card>
 
-        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex items-center justify-between">
+        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex flex-row items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">SMS Alerts Sent</span>
             <div className="text-2xl font-extrabold text-violet-600 dark:text-violet-400 mt-1">9,640</div>

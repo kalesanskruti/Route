@@ -2,15 +2,32 @@ import { db } from "@/lib/db";
 import { BusStatus } from "@prisma/client";
 
 export class BusService {
-  static async getAll() {
+  static async getAll(institutionId?: string | null) {
+    const where: any = { isArchived: false };
+    if (institutionId) {
+      where.institutionId = institutionId;
+    }
     return db.bus.findMany({
-      where: { isArchived: false },
+      where,
+      include: {
+        drivers: true,
+        routes: true,
+      },
+      orderBy: { createdAt: "desc" },
     });
   }
 
-  static async getById(id: string) {
+  static async getById(id: string, institutionId?: string | null) {
+    const where: any = { id, isArchived: false };
+    if (institutionId) {
+      where.institutionId = institutionId;
+    }
     return db.bus.findFirst({
-      where: { id, isArchived: false },
+      where,
+      include: {
+        drivers: true,
+        routes: true,
+      }
     });
   }
 
@@ -25,13 +42,36 @@ export class BusService {
     fitnessExpiry: Date;
     fitnessCertificateUrl?: string | null;
     gpsDeviceId: string;
+    gpsProvider?: string | null;
     status?: BusStatus;
+    institutionId?: string | null;
+    routeId?: string | null;
   }) {
-    return db.bus.create({
-      data: {
-        ...data,
-        isArchived: false,
-      },
+    const { routeId, ...busData } = data;
+
+    if (routeId) {
+      const route = await db.route.findFirst({ where: { id: routeId } });
+      if (route?.busId) {
+        throw new Error(`Route "${route.name}" already has an assigned bus (ID: ${route.busId}).`);
+      }
+    }
+
+    return db.$transaction(async (tx) => {
+      const bus = await tx.bus.create({
+        data: {
+          ...busData,
+          isArchived: false,
+        },
+      });
+
+      if (routeId) {
+        await tx.route.update({
+          where: { id: routeId },
+          data: { busId: bus.id },
+        });
+      }
+
+      return bus;
     });
   }
 

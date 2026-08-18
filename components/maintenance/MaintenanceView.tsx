@@ -196,7 +196,7 @@ export function MaintenanceView() {
 
       {/* 4 Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex items-center justify-between">
+        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex flex-row items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Expense (YTD)</span>
             <div className="text-2xl font-extrabold text-foreground mt-1">₹5.62L</div>
@@ -207,7 +207,7 @@ export function MaintenanceView() {
           </div>
         </Card>
 
-        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex items-center justify-between">
+        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex flex-row items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">In Workshop Now</span>
             <div className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">2 Buses</div>
@@ -218,7 +218,7 @@ export function MaintenanceView() {
           </div>
         </Card>
 
-        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex items-center justify-between">
+        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex flex-row items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Scheduled Due</span>
             <div className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-1">6 Buses</div>
@@ -229,7 +229,7 @@ export function MaintenanceView() {
           </div>
         </Card>
 
-        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex items-center justify-between">
+        <Card className="rounded-2xl border-border bg-card shadow-sm p-4 flex flex-row items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completed (YTD)</span>
             <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">124 Work Orders</div>

@@ -9,12 +9,15 @@ generator client {
 enum Role {
   SUPER_ADMIN
   TRANSPORT_MANAGER
+  BUS_SUPERVISOR
   DRIVER
 }
 
 enum BusStatus {
   ACTIVE
+  INACTIVE
   MAINTENANCE
+  RETIRED
 }
 
 enum StopType {
@@ -41,40 +44,136 @@ enum NotificationStatus {
 enum NotificationType {
   BOARDED
   DROPPED
+  SYSTEM_ALERT
+  MAINTENANCE_ALERT
+  COMPLIANCE_ALERT
+  INCIDENT_ALERT
+}
+
+enum TripStatus {
+  SCHEDULED
+  BOARDING
+  IN_TRANSIT
+  DELAYED
+  ARRIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum IncidentStatus {
+  NEW
+  UNDER_REVIEW
+  ACTION_TAKEN
+  RESOLVED
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ComplianceStatus {
+  VALID
+  EXPIRING_SOON
+  EXPIRED
+}
+
+enum RouteStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TransportationStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Institution {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  buses             Bus[]
+  drivers           Driver[]
+  routes            Route[]
+  students          Student[]
+  trips             Trip[]
+  incidents         Incident[]
+  maintenances      Maintenance[]
+  activityLogs      ActivityLog[]
+  transportSettings TransportSettings[]
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  driver    Driver?
+  id            String       @id @default(uuid())
+  email         String       @unique
+  password      String
+  name          String
+  employeeId    String?      @unique
+  phone         String?
+  role          Role
+  status        String       @default("ACTIVE")
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  driver          Driver?
+  supervisedBuses Bus[]   @relation("BusSupervisor")
+  supervisedTrips Trip[]  @relation("TripSupervisor")
 }
 
 model Bus {
-  id                     String             @id @default(uuid())
-  busNumber              String             @unique
-  registrationNumber     String             @unique
-  seatingCapacity        Int
-  vehicleType            String
-  insuranceNumber        String
-  insuranceExpiry        DateTime
-  insuranceDocumentUrl   String?
-  fitnessCertificateUrl  String?
-  fitnessExpiry          DateTime
-  gpsDeviceId            String             @unique
-  status                 BusStatus          @default(ACTIVE)
-  isArchived             Boolean            @default(false)
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  routes                 Route[]
-  locations              BusLocation[]
-  students               Student[]
-  attendance             AttendanceRecord[]
-  drivers                Driver[]
+  id                 String  @id @default(uuid())
+  busNumber          String  @unique
+  registrationNumber String  @unique
+  manufacturer       String?
+  model              String?
+  manufacturingYear  Int?
+  seatingCapacity    Int
+  fuelType           String?
+  chassisNumber      String?
+  engineNumber       String?
+  vehicleType        String
+  gpsDeviceId        String  @unique
+  gpsProvider        String?
+
+  insuranceNumber         String?
+  insuranceExpiry         DateTime?
+  insuranceDocumentUrl    String?
+  fitnessCertificateUrl   String?
+  fitnessExpiry           DateTime?
+  pollutionCertificateUrl String?
+  pollutionExpiry         DateTime?
+  permitDocumentUrl       String?
+  permitExpiry            DateTime?
+
+  status     BusStatus @default(ACTIVE)
+  isArchived Boolean   @default(false)
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  supervisorId  String?
+  supervisor    User?        @relation("BusSupervisor", fields: [supervisorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routes       Route[]
+  locations    BusLocation[]
+  students     Student[]
+  attendance   AttendanceRecord[]
+  drivers      Driver[]
+  trips        Trip[]
+  incidents    Incident[]
+  maintenances Maintenance[]
 }
 
 model BusLocation {
@@ -90,68 +189,134 @@ model BusLocation {
 }
 
 model Driver {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
-  licenseNumber  String   @unique
+  employeeId     String?   @unique
+  email          String?
+  phone          String?
+  joiningDate    DateTime?
+  licenseNumber  String    @unique
+  licenseType    String?
   licenseExpiry  DateTime
-  contactDetails String
-  userId         String?  @unique
-  user           User?    @relation(fields: [userId], references: [id])
-  busId          String?
-  bus            Bus?     @relation(fields: [busId], references: [id])
-  isArchived     Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  routes         Route[]
+  contactDetails String?
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id])
+
+  busId String?
+  bus   Bus?    @relation(fields: [busId], references: [id])
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  isArchived Boolean  @default(false)
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  routes    Route[]
+  trips     Trip[]
+  incidents Incident[]
 }
 
 model Route {
-  id            String             @id @default(uuid())
-  name          String             @unique
+  id            String      @id @default(uuid())
+  routeNumber   String?
+  name          String      @unique
   source        String
   destination   String
+  distance      Float?
   estimatedTime String
-  busId         String?
-  bus           Bus?               @relation(fields: [busId], references: [id])
-  driverId      String?
-  driver        Driver?            @relation(fields: [driverId], references: [id])
-  isArchived    Boolean            @default(false)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  stops         RouteStop[]
-  students      Student[]
-  attendance    AttendanceRecord[]
+  status        RouteStatus @default(ACTIVE)
+
+  busId    String?
+  bus      Bus?    @relation(fields: [busId], references: [id])
+  driverId String?
+  driver   Driver? @relation(fields: [driverId], references: [id])
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  stops      RouteStop[]
+  students   Student[]
+  attendance AttendanceRecord[]
+  trips      Trip[]
+  incidents  Incident[]
 }
 
 model RouteStop {
-  id        String    @id @default(uuid())
-  routeId   String
-  route     Route     @relation(fields: [routeId], references: [id])
-  stopName  String
-  stopOrder Int
-  latitude  Float
-  longitude Float
-  type      StopType  @default(BOTH)
-  students  Student[]
+  id         String    @id @default(uuid())
+  routeId    String
+  route      Route     @relation(fields: [routeId], references: [id])
+  stopName   String
+  address    String?
+  stopOrder  Int
+  latitude   Float
+  longitude  Float
+  pickupTime String?
+  dropTime   String?
+  type       StopType  @default(BOTH)
+  students   Student[]
 }
 
 model Student {
-  id                 String             @id @default(uuid())
-  name               String
-  admissionNumber    String             @unique
-  classSection       String
-  parentName         String
-  parentMobileNumber String
-  busId              String?
-  bus                Bus?               @relation(fields: [busId], references: [id])
-  routeId            String?
-  route              Route?             @relation(fields: [routeId], references: [id])
-  pickupStopId       String?
-  pickupStop         RouteStop?         @relation(fields: [pickupStopId], references: [id])
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  attendance         AttendanceRecord[]
-  notifications      NotificationLog[]
+  id                   String               @id @default(uuid())
+  name                 String
+  admissionNumber      String               @unique
+  department           String?
+  yearSemester         String?
+  classSection         String?
+  contact              String?
+  parentName           String
+  parentMobileNumber   String
+  transportationStatus TransportationStatus @default(ACTIVE)
+
+  busId        String?
+  bus          Bus?       @relation(fields: [busId], references: [id])
+  routeId      String?
+  route        Route?     @relation(fields: [routeId], references: [id])
+  pickupStopId String?
+  pickupStop   RouteStop? @relation(fields: [pickupStopId], references: [id])
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendance    AttendanceRecord[]
+  notifications NotificationLog[]
+  incidents     Incident[]         @relation("StudentIncidents")
+}
+
+model Trip {
+  id              String     @id @default(uuid())
+  date            DateTime
+  startTime       DateTime?
+  expectedArrival DateTime?
+  actualStart     DateTime?
+  actualArrival   DateTime?
+  studentCount    Int        @default(0)
+  status          TripStatus @default(SCHEDULED)
+
+  routeId      String
+  route        Route   @relation(fields: [routeId], references: [id])
+  busId        String
+  bus          Bus     @relation(fields: [busId], references: [id])
+  driverId     String?
+  driver       Driver? @relation(fields: [driverId], references: [id])
+  supervisorId String?
+  supervisor   User?   @relation("TripSupervisor", fields: [supervisorId], references: [id])
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AttendanceRecord {
@@ -174,26 +339,92 @@ model AttendanceRecord {
   @@unique([studentId, type, date])
 }
 
+model Incident {
+  id          String         @id @default(uuid())
+  type        String // Accident, Breakdown, Delay, etc.
+  description String         @db.Text
+  location    String?
+  time        DateTime
+  status      IncidentStatus @default(NEW)
+  resolution  String?        @db.Text
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  evidenceUrl String?
+
+  busId     String?
+  bus       Bus?     @relation(fields: [busId], references: [id])
+  routeId   String?
+  route     Route?   @relation(fields: [routeId], references: [id])
+  driverId  String?
+  driver    Driver?  @relation(fields: [driverId], references: [id])
+  studentId String?
+  student   Student? @relation("StudentIncidents", fields: [studentId], references: [id])
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Maintenance {
+  id            String            @id @default(uuid())
+  type          String // Routine, Repair, etc.
+  description   String            @db.Text
+  scheduledDate DateTime
+  cost          Float?
+  invoiceUrl    String?
+  status        MaintenanceStatus @default(SCHEDULED)
+
+  busId String
+  bus   Bus    @relation(fields: [busId], references: [id])
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model NotificationLog {
   id        String             @id @default(uuid())
-  studentId String
-  student   Student            @relation(fields: [studentId], references: [id])
-  message   String
+  message   String             @db.Text
   status    NotificationStatus
   sentTo    String
-  timestamp DateTime           @default(now())
   type      NotificationType
+  timestamp DateTime           @default(now())
+
+  studentId String?
+  student   Student? @relation(fields: [studentId], references: [id])
+}
+
+model ActivityLog {
+  id           String   @id @default(uuid())
+  userId       String
+  action       String
+  entity       String
+  entityId     String
+  previousData String?  @db.Text
+  newData      String?  @db.Text
+  timestamp    DateTime @default(now())
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
 }
 
 model TransportSettings {
-  id                          String   @id @default("default")
+  id                          String  @id @default("default")
   schoolName                  String
   notificationBoardedTemplate String
   notificationDroppedTemplate String
   defaultTripStartTime        String
   defaultTripEndTime          String
-  timezone                    String   @default("Asia/Kolkata")
-  smsEnabled                  Boolean  @default(false)
-  whatsappEnabled             Boolean  @default(false)
-  updatedAt                   DateTime @updatedAt
+  timezone                    String  @default("Asia/Kolkata")
+  smsEnabled                  Boolean @default(false)
+  whatsappEnabled             Boolean @default(false)
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  updatedAt DateTime @updatedAt
 }
